@@ -11,7 +11,7 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "w-full border-b border-sidebar-border bg-sidebar text-sidebar-foreground md:h-screen md:w-72 md:border-r md:border-b-0",
+        "flex w-full flex-col border-b border-sidebar-border bg-sidebar text-sidebar-foreground md:sticky md:top-0 md:h-screen md:w-72 md:border-r md:border-b-0",
         className,
       )}
     >
@@ -35,7 +35,7 @@ export function SidebarContent({
   className,
   children,
 }: PropsWithChildren<{ className?: string }>) {
-  return <div className={cn("p-3", className)}>{children}</div>;
+  return <div className={cn("flex-1 p-3", className)}>{children}</div>;
 }
 
 export function SidebarFooter({

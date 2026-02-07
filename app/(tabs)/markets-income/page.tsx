@@ -7,8 +7,9 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import ReactECharts from "echarts-for-react";
+import { Banknote, Milk, Ship } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { ThemedChart } from "@/components/charts/themed-chart";
 import {
   Card,
   CardContent,
@@ -16,6 +17,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { KpiCard } from "@/components/ui/kpi-card";
 import {
   decodeJsonStat,
   type JsonStatDataset,
@@ -48,12 +50,6 @@ const queryDefaults = {
   refetchOnWindowFocus: false as const,
   refetchOnReconnect: false as const,
   retry: 1,
-};
-
-const chartDefaults = {
-  notMerge: true,
-  lazyUpdate: true,
-  opts: { renderer: "svg" as const },
 };
 
 async function fetchCso(dataset: string) {
@@ -772,27 +768,25 @@ export default function MarketsIncomePage() {
         </CardContent>
       </Card>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardDescription>
-              Total agricultural output (latest in range)
-            </CardDescription>
-            <CardTitle>{currency.format(kpiTotalOutput)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Agri-food exports (latest year)</CardDescription>
-            <CardTitle>{currency.format(kpiExports)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Milk price index (latest month)</CardDescription>
-            <CardTitle>{kpiMilkIndex.toFixed(2)}</CardTitle>
-          </CardHeader>
-        </Card>
+      <section className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+        <KpiCard
+          label="Total agricultural output (latest in range)"
+          value={currency.format(kpiTotalOutput)}
+          icon={Banknote}
+          variant="success"
+        />
+        <KpiCard
+          label="Agri-food exports (latest year)"
+          value={currency.format(kpiExports)}
+          icon={Ship}
+          variant="info"
+        />
+        <KpiCard
+          label="Milk price index (latest month)"
+          value={kpiMilkIndex.toFixed(2)}
+          icon={Milk}
+          variant="default"
+        />
       </section>
 
       <Card>
@@ -803,11 +797,9 @@ export default function MarketsIncomePage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ReactECharts
-            {...chartDefaults}
+          <ThemedChart
             style={{ height: 360 }}
             option={{
-              animation: false,
               tooltip: { trigger: "axis" },
               legend: { data: ["Cattle", "Milk", "Sheep", "Crops"] },
               xAxis: { type: "category", data: outputSeries.years },
@@ -833,11 +825,9 @@ export default function MarketsIncomePage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ReactECharts
-              {...chartDefaults}
+            <ThemedChart
               style={{ height: 360 }}
               option={{
-                animation: false,
                 tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
                 xAxis: { type: "value" },
                 yAxis: {
@@ -863,11 +853,9 @@ export default function MarketsIncomePage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ReactECharts
-              {...chartDefaults}
+            <ThemedChart
               style={{ height: 360 }}
               option={{
-                animation: false,
                 tooltip: { trigger: "axis" },
                 xAxis: { type: "category", data: pricesSeries.labels },
                 yAxis: { type: "value" },
@@ -914,11 +902,9 @@ export default function MarketsIncomePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ReactECharts
-                  {...chartDefaults}
+                <ThemedChart
                   style={{ height: 320 }}
                   option={{
-                    animation: false,
                     tooltip: { trigger: "axis" },
                     xAxis: { type: "category", data: livestockNumbers.years },
                     yAxis: { type: "value" },
@@ -952,11 +938,9 @@ export default function MarketsIncomePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ReactECharts
-                  {...chartDefaults}
+                <ThemedChart
                   style={{ height: 320 }}
                   option={{
-                    animation: false,
                     tooltip: { trigger: "axis" },
                     xAxis: { type: "category", data: slaughterings.labels },
                     yAxis: { type: "value" },
@@ -989,11 +973,9 @@ export default function MarketsIncomePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ReactECharts
-                  {...chartDefaults}
+                <ThemedChart
                   style={{ height: 320 }}
                   option={{
-                    animation: false,
                     tooltip: { trigger: "axis" },
                     xAxis: { type: "category", data: dairyProduction.labels },
                     yAxis: { type: "value" },
@@ -1028,11 +1010,9 @@ export default function MarketsIncomePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4">
-                <ReactECharts
-                  {...chartDefaults}
+                <ThemedChart
                   style={{ height: 240 }}
                   option={{
-                    animation: false,
                     tooltip: { trigger: "axis" },
                     xAxis: { type: "category", data: fertiliser.labels },
                     yAxis: { type: "value" },
@@ -1042,11 +1022,9 @@ export default function MarketsIncomePage() {
                     ],
                   }}
                 />
-                <ReactECharts
-                  {...chartDefaults}
+                <ThemedChart
                   style={{ height: 180 }}
                   option={{
-                    animation: false,
                     tooltip: { trigger: "axis" },
                     xAxis: {
                       type: "category",
@@ -1072,11 +1050,9 @@ export default function MarketsIncomePage() {
                 <CardDescription>Annual export value totals.</CardDescription>
               </CardHeader>
               <CardContent>
-                <ReactECharts
-                  {...chartDefaults}
+                <ThemedChart
                   style={{ height: 300 }}
                   option={{
-                    animation: false,
                     tooltip: { trigger: "axis" },
                     xAxis: {
                       type: "category",
@@ -1102,11 +1078,9 @@ export default function MarketsIncomePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ReactECharts
-                  {...chartDefaults}
+                <ThemedChart
                   style={{ height: 300 }}
                   option={{
-                    animation: false,
                     tooltip: {
                       trigger: "axis",
                       axisPointer: { type: "shadow" },

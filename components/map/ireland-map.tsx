@@ -17,7 +17,7 @@ type IrelandMapProps = {
 };
 
 const soilTiles =
-  "https://gis.epa.ie/geoserver/wms?service=WMS&version=1.1.1&request=GetMap&layers=EPA:SOIL_SISNationalSoils&styles=&bbox={bbox-epsg-3857}&width=256&height=256&srs=EPSG:3857&format=image/png&transparent=true";
+  "/api/data/epa/soil-wms?bbox={bbox-epsg-3857}&width=256&height=256";
 
 export function IrelandMap({
   center,

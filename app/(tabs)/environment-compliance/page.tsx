@@ -1,10 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import ReactECharts from "echarts-for-react";
+import { Droplets, Fish, Leaf, Shield } from "lucide-react";
 import { useMemo, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 import MapView, { Layer, Source } from "react-map-gl/maplibre";
+import { ThemedChart } from "@/components/charts/themed-chart";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { KpiCard } from "@/components/ui/kpi-card";
 import {
   decodeJsonStat,
   type JsonStatDataset,
@@ -196,31 +198,31 @@ export default function EnvironmentCompliancePage() {
 
   return (
     <div className="grid gap-6">
-      <section className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader>
-            <CardDescription>Waterbodies in view</CardDescription>
-            <CardTitle>{totalWaterbodies}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Good/High status share</CardDescription>
-            <CardTitle>{goodHighShare}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Biodiversity records (60km)</CardDescription>
-            <CardTitle>{biodiversityQuery.data?.totalRecords ?? 0}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Protected species records</CardDescription>
-            <CardTitle>{biodiversityQuery.data?.protectedCount ?? 0}</CardTitle>
-          </CardHeader>
-        </Card>
+      <section className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
+        <KpiCard
+          label="Waterbodies in view"
+          value={totalWaterbodies}
+          icon={Droplets}
+          variant="info"
+        />
+        <KpiCard
+          label="Good/High status share"
+          value={goodHighShare}
+          icon={Fish}
+          variant="success"
+        />
+        <KpiCard
+          label="Biodiversity records (60km)"
+          value={biodiversityQuery.data?.totalRecords ?? 0}
+          icon={Leaf}
+          variant="default"
+        />
+        <KpiCard
+          label="Protected species records"
+          value={biodiversityQuery.data?.protectedCount ?? 0}
+          icon={Shield}
+          variant="warning"
+        />
       </section>
 
       <Card>
@@ -423,7 +425,7 @@ export default function EnvironmentCompliancePage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ReactECharts
+            <ThemedChart
               style={{ height: 300 }}
               option={{
                 tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
@@ -480,7 +482,7 @@ export default function EnvironmentCompliancePage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ReactECharts
+          <ThemedChart
             style={{ height: 340 }}
             option={{
               tooltip: { trigger: "axis" },

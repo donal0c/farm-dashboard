@@ -1,10 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import ReactECharts from "echarts-for-react";
+import { Droplets, Thermometer, TreePine, Wind } from "lucide-react";
 import { useMemo, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 import MapView, { Layer, Source } from "react-map-gl/maplibre";
+import { ThemedChart } from "@/components/charts/themed-chart";
 import {
   Card,
   CardContent,
@@ -12,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { KpiCard } from "@/components/ui/kpi-card";
 import { MET_STATIONS } from "@/lib/data/met-stations";
 
 type AgStation = {
@@ -200,31 +202,31 @@ export default function WeatherWaterPage() {
 
   return (
     <div className="grid gap-6">
-      <section className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader>
-            <CardDescription>Avg Temperature (16 ag stations)</CardDescription>
-            <CardTitle>{agKpis.avgTemp.toFixed(1)} C</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Avg Rainfall (7-day)</CardDescription>
-            <CardTitle>{agKpis.avgRain.toFixed(1)} mm</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Avg Soil Temp</CardDescription>
-            <CardTitle>{agKpis.avgSoil.toFixed(1)} C</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Avg Wind</CardDescription>
-            <CardTitle>{agKpis.avgWind.toFixed(1)} kts</CardTitle>
-          </CardHeader>
-        </Card>
+      <section className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
+        <KpiCard
+          label="Avg Temperature (16 stations)"
+          value={`${agKpis.avgTemp.toFixed(1)}\u00B0C`}
+          icon={Thermometer}
+          variant="warning"
+        />
+        <KpiCard
+          label="Avg Rainfall (7-day)"
+          value={`${agKpis.avgRain.toFixed(1)} mm`}
+          icon={Droplets}
+          variant="info"
+        />
+        <KpiCard
+          label="Avg Soil Temp"
+          value={`${agKpis.avgSoil.toFixed(1)}\u00B0C`}
+          icon={TreePine}
+          variant="success"
+        />
+        <KpiCard
+          label="Avg Wind"
+          value={`${agKpis.avgWind.toFixed(1)} kts`}
+          icon={Wind}
+          variant="default"
+        />
       </section>
 
       <Card>
@@ -282,7 +284,7 @@ export default function WeatherWaterPage() {
                 </option>
               ))}
             </select>
-            <ReactECharts
+            <ThemedChart
               style={{ height: 280 }}
               option={{
                 tooltip: { trigger: "axis" },
@@ -351,7 +353,7 @@ export default function WeatherWaterPage() {
                 className="h-10 rounded-md border border-input bg-background px-3 text-sm"
               />
             </div>
-            <ReactECharts
+            <ThemedChart
               style={{ height: 280 }}
               option={{
                 tooltip: { trigger: "axis" },
@@ -451,7 +453,7 @@ export default function WeatherWaterPage() {
                     {selectedOpwFeature.properties.datetime}
                   </p>
                 </div>
-                <ReactECharts
+                <ThemedChart
                   style={{ height: 220 }}
                   option={{
                     tooltip: { trigger: "axis" },

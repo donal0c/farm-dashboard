@@ -391,9 +391,9 @@ export default function MyLandPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Yield Trend (ECharts)</CardTitle>
+            <CardTitle>Yield Trend</CardTitle>
             <CardDescription>
-              Sample chart scaffold for production metrics.
+              Monthly yield outlook index for selected area.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -404,9 +404,9 @@ export default function MyLandPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Area Trend (Tremor)</CardTitle>
+          <CardTitle>Area Trend</CardTitle>
           <CardDescription>
-            Sample Tremor chart to verify integration.
+            Farm area utilisation trend over recent months.
           </CardDescription>
         </CardHeader>
         <CardContent>

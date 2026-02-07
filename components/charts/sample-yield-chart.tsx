@@ -1,14 +1,13 @@
 "use client";
 
-import ReactECharts from "echarts-for-react";
+import { ThemedChart } from "@/components/charts/themed-chart";
 
 export function SampleYieldChart() {
   return (
-    <ReactECharts
+    <ThemedChart
       style={{ height: 320 }}
       option={{
         tooltip: { trigger: "axis" },
-        grid: { left: 40, right: 20, top: 20, bottom: 30 },
         xAxis: {
           type: "category",
           data: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],

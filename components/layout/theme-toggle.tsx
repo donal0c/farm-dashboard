@@ -4,8 +4,6 @@ import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
-import { Button } from "@/components/ui/button";
-
 export function ThemeToggle() {
   const { setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -16,28 +14,26 @@ export function ThemeToggle() {
 
   if (!mounted) {
     return (
-      <Button
-        variant="outline"
-        size="sm"
-        className="w-full justify-start gap-2"
+      <button
+        type="button"
+        className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-primary-foreground"
       >
         <Sun className="h-4 w-4" />
-        Theme
-      </Button>
+        <span>Theme</span>
+      </button>
     );
   }
 
   const isDark = resolvedTheme === "dark";
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
+    <button
+      type="button"
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className="w-full justify-start gap-2"
+      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-primary-foreground"
     >
       {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-      {isDark ? "Switch to light" : "Switch to dark"}
-    </Button>
+      <span>{isDark ? "Light mode" : "Dark mode"}</span>
+    </button>
   );
 }
