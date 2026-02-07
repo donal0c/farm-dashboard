@@ -26,12 +26,21 @@ const tabs = [
   },
 ] as const;
 
+const genUiEnabled = process.env.NEXT_PUBLIC_ENABLE_GENUI === "true";
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const setActiveTab = useUiStore((state) => state.setActiveTab);
 
   return (
-    <div className="min-h-screen bg-background md:grid md:grid-cols-[18rem_1fr_22rem]">
+    <div
+      className={cn(
+        "min-h-screen bg-background md:grid",
+        genUiEnabled
+          ? "md:grid-cols-[18rem_1fr_22rem]"
+          : "md:grid-cols-[18rem_1fr]",
+      )}
+    >
       <Sidebar>
         <SidebarHeader>
           <p className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -68,9 +77,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </SidebarFooter>
       </Sidebar>
       <main className="p-4 md:p-6">{children}</main>
-      <div className="hidden md:block">
-        <ChatSidebar />
-      </div>
+      {genUiEnabled ? (
+        <div className="hidden md:block">
+          <ChatSidebar />
+        </div>
+      ) : null}
     </div>
   );
 }

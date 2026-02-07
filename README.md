@@ -27,3 +27,4 @@ Copy `.env.example` and set:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_ENABLE_GENUI` (optional, default `false`)
