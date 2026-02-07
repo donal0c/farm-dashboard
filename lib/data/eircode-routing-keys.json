@@ -1,0 +1,558 @@
+[
+  {
+    "name": "A45",
+    "description": "OLDTOWN"
+  },
+  {
+    "name": "A67",
+    "description": "WICKLOW"
+  },
+  {
+    "name": "A83",
+    "description": "ENFIELD"
+  },
+  {
+    "name": "A91",
+    "description": "DUNDALK"
+  },
+  {
+    "name": "A92",
+    "description": "DROGHEDA"
+  },
+  {
+    "name": "A94",
+    "description": "BLACKROCK"
+  },
+  {
+    "name": "A96",
+    "description": "GLENAGEARY"
+  },
+  {
+    "name": "A98",
+    "description": "BRAY"
+  },
+  {
+    "name": "D01",
+    "description": "DUBLIN 1"
+  },
+  {
+    "name": "D02",
+    "description": "DUBLIN 2"
+  },
+  {
+    "name": "D03",
+    "description": "DUBLIN 3"
+  },
+  {
+    "name": "D04",
+    "description": "DUBLIN 4"
+  },
+  {
+    "name": "D05",
+    "description": "DUBLIN 5"
+  },
+  {
+    "name": "D06",
+    "description": "DUBLIN 6"
+  },
+  {
+    "name": "D07",
+    "description": "DUBLIN 7"
+  },
+  {
+    "name": "D09",
+    "description": "DUBLIN 9"
+  },
+  {
+    "name": "D10",
+    "description": "DUBLIN 10"
+  },
+  {
+    "name": "D13",
+    "description": "DUBLIN 13"
+  },
+  {
+    "name": "D14",
+    "description": "DUBLIN 14"
+  },
+  {
+    "name": "D15",
+    "description": "DUBLIN 15"
+  },
+  {
+    "name": "D18",
+    "description": "DUBLIN 18"
+  },
+  {
+    "name": "D20",
+    "description": "DUBLIN 20"
+  },
+  {
+    "name": "D22",
+    "description": "DUBLIN 22"
+  },
+  {
+    "name": "D24",
+    "description": "DUBLIN 24"
+  },
+  {
+    "name": "D6W",
+    "description": "DUBLIN 6W"
+  },
+  {
+    "name": "E41",
+    "description": "THURLES"
+  },
+  {
+    "name": "E45",
+    "description": "NENAGH"
+  },
+  {
+    "name": "E53",
+    "description": "ROSCREA"
+  },
+  {
+    "name": "E91",
+    "description": "CLONMEL"
+  },
+  {
+    "name": "F23",
+    "description": "CASTLEBAR"
+  },
+  {
+    "name": "F31",
+    "description": "BALLINROBE"
+  },
+  {
+    "name": "F42",
+    "description": "ROSCOMMON"
+  },
+  {
+    "name": "F52",
+    "description": "BOYLE"
+  },
+  {
+    "name": "H12",
+    "description": "CAVAN"
+  },
+  {
+    "name": "H18",
+    "description": "MONAGHAN"
+  },
+  {
+    "name": "H23",
+    "description": "CLONES"
+  },
+  {
+    "name": "H53",
+    "description": "BALLINASLOE"
+  },
+  {
+    "name": "H54",
+    "description": "TUAM"
+  },
+  {
+    "name": "H62",
+    "description": "LOUGHREA"
+  },
+  {
+    "name": "H65",
+    "description": "ATHENRY"
+  },
+  {
+    "name": "K32",
+    "description": "BALBRIGGAN"
+  },
+  {
+    "name": "K56",
+    "description": "RUSH"
+  },
+  {
+    "name": "K67",
+    "description": "SWORDS"
+  },
+  {
+    "name": "K78",
+    "description": "LUCAN"
+  },
+  {
+    "name": "N37",
+    "description": "ATHLONE"
+  },
+  {
+    "name": "P12",
+    "description": "MACROOM"
+  },
+  {
+    "name": "P14",
+    "description": "CORK - CROOKSTOWN"
+  },
+  {
+    "name": "P24",
+    "description": "COBH"
+  },
+  {
+    "name": "P25",
+    "description": "MIDLETON"
+  },
+  {
+    "name": "P31",
+    "description": "BALLINCOLLIG"
+  },
+  {
+    "name": "P32",
+    "description": "CORK - DONOUGHMORE"
+  },
+  {
+    "name": "P36",
+    "description": "YOUGHAL"
+  },
+  {
+    "name": "P47",
+    "description": "CORK - DUNMANWAY"
+  },
+  {
+    "name": "P56",
+    "description": "CHARLEVILLE"
+  },
+  {
+    "name": "P67",
+    "description": "MITCHELSTOWN"
+  },
+  {
+    "name": "P72",
+    "description": "BANDON"
+  },
+  {
+    "name": "P85",
+    "description": "CLONAKILTY"
+  },
+  {
+    "name": "R21",
+    "description": "MUINE BHEAG"
+  },
+  {
+    "name": "R32",
+    "description": "PORTLAOISE"
+  },
+  {
+    "name": "R35",
+    "description": "TULLAMORE"
+  },
+  {
+    "name": "R42",
+    "description": "BIRR"
+  },
+  {
+    "name": "R45",
+    "description": "EDENDERRY"
+  },
+  {
+    "name": "R51",
+    "description": "KILDARE"
+  },
+  {
+    "name": "R95",
+    "description": "KILKENNY"
+  },
+  {
+    "name": "T34",
+    "description": "CORK - WHITECHURCH"
+  },
+  {
+    "name": "T45",
+    "description": "LITTLE ISLAND"
+  },
+  {
+    "name": "V14",
+    "description": "SHANNON"
+  },
+  {
+    "name": "V15",
+    "description": "KILRUSH"
+  },
+  {
+    "name": "V31",
+    "description": "LISTOWEL"
+  },
+  {
+    "name": "V42",
+    "description": "NEWCASTLE WEST"
+  },
+  {
+    "name": "W34",
+    "description": "MONASTEREVIN"
+  },
+  {
+    "name": "W91",
+    "description": "NAAS"
+  },
+  {
+    "name": "X35",
+    "description": "DUNGARVAN"
+  },
+  {
+    "name": "X42",
+    "description": "KILMACTHOMAS"
+  },
+  {
+    "name": "X91",
+    "description": "WATERFORD"
+  },
+  {
+    "name": "Y25",
+    "description": "GOREY"
+  },
+  {
+    "name": "Y34",
+    "description": "NEW ROSS"
+  },
+  {
+    "name": "K34",
+    "description": "SKERRIES"
+  },
+  {
+    "name": "H14",
+    "description": "BELTURBET"
+  },
+  {
+    "name": "A81",
+    "description": "CARRICKMACROSS"
+  },
+  {
+    "name": "F35",
+    "description": "BALLYHAUNIS"
+  },
+  {
+    "name": "D08",
+    "description": "DUBLIN 8"
+  },
+  {
+    "name": "F91",
+    "description": "SLIGO"
+  },
+  {
+    "name": "Y35",
+    "description": "WEXFORD"
+  },
+  {
+    "name": "P81",
+    "description": "SKIBBEREEN"
+  },
+  {
+    "name": "P75",
+    "description": "BANTRY"
+  },
+  {
+    "name": "V23",
+    "description": "CAHERCIVEEN"
+  },
+  {
+    "name": "V92",
+    "description": "TRALEE"
+  },
+  {
+    "name": "V95",
+    "description": "ENNIS"
+  },
+  {
+    "name": "H71",
+    "description": "CLIFDEN"
+  },
+  {
+    "name": "F92",
+    "description": "LETTERKENNY"
+  },
+  {
+    "name": "F94",
+    "description": "DONEGAL"
+  },
+  {
+    "name": "F26",
+    "description": "BALLINA"
+  },
+  {
+    "name": "H91",
+    "description": "GALWAY"
+  },
+  {
+    "name": "F28",
+    "description": "WESTPORT"
+  },
+  {
+    "name": "H16",
+    "description": "COOTEHILL"
+  },
+  {
+    "name": "F45",
+    "description": "CASTLEREA"
+  },
+  {
+    "name": "E25",
+    "description": "CASHEL"
+  },
+  {
+    "name": "D16",
+    "description": "DUBLIN 16"
+  },
+  {
+    "name": "A42",
+    "description": "GARRISTOWN"
+  },
+  {
+    "name": "A84",
+    "description": "ASHBOURNE"
+  },
+  {
+    "name": "T12",
+    "description": "CORK - BALLINHASSIG"
+  },
+  {
+    "name": "E32",
+    "description": "CARRICK-ON-SUIR"
+  },
+  {
+    "name": "A75",
+    "description": "CASTLEBLAYNEY"
+  },
+  {
+    "name": "T56",
+    "description": "CORK - WATERGRASSHILL"
+  },
+  {
+    "name": "R14",
+    "description": "ATHY"
+  },
+  {
+    "name": "A63",
+    "description": "GREYSTONES"
+  },
+  {
+    "name": "D12",
+    "description": "DUBLIN 12"
+  },
+  {
+    "name": "P51",
+    "description": "MALLOW"
+  },
+  {
+    "name": "F12",
+    "description": "CLAREMORRIS"
+  },
+  {
+    "name": "P17",
+    "description": "KINSALE"
+  },
+  {
+    "name": "R93",
+    "description": "CARLOW"
+  },
+  {
+    "name": "N39",
+    "description": "LONGFORD"
+  },
+  {
+    "name": "F56",
+    "description": "BALLYMOTE"
+  },
+  {
+    "name": "N41",
+    "description": "CARRICK-ON-SHANNON"
+  },
+  {
+    "name": "V35",
+    "description": "KILMALLOCK"
+  },
+  {
+    "name": "E34",
+    "description": "TIPPERARY"
+  },
+  {
+    "name": "E21",
+    "description": "CAHIR"
+  },
+  {
+    "name": "V93",
+    "description": "KILLARNEY"
+  },
+  {
+    "name": "V94",
+    "description": "LIMERICK"
+  },
+  {
+    "name": "N91",
+    "description": "MULLINGAR"
+  },
+  {
+    "name": "T23",
+    "description": "CORK - BLARNEY"
+  },
+  {
+    "name": "D17",
+    "description": "DUBLIN 17"
+  },
+  {
+    "name": "A86",
+    "description": "DUNBOYNE"
+  },
+  {
+    "name": "Y14",
+    "description": "ARKLOW"
+  },
+  {
+    "name": "A82",
+    "description": "KELLS"
+  },
+  {
+    "name": "K45",
+    "description": "LUSK"
+  },
+  {
+    "name": "K36",
+    "description": "MALAHIDE"
+  },
+  {
+    "name": "A41",
+    "description": "BALLYBOUGHAL"
+  },
+  {
+    "name": "D11",
+    "description": "DUBLIN 11"
+  },
+  {
+    "name": "R56",
+    "description": "CURRAGH CAMP"
+  },
+  {
+    "name": "A85",
+    "description": "DUNSHAUGHLIN"
+  },
+  {
+    "name": "W23",
+    "description": "MAYNOOTH"
+  },
+  {
+    "name": "Y21",
+    "description": "ENNISCORTHY"
+  },
+  {
+    "name": "P61",
+    "description": "FERMOY"
+  },
+  {
+    "name": "P43",
+    "description": "CARRIGALINE"
+  },
+  {
+    "name": "C15",
+    "description": "NAVAN"
+  },
+  {
+    "name": "F93",
+    "description": "LIFFORD"
+  },
+  {
+    "name": "W12",
+    "description": "NEWBRIDGE"
+  }
+]

@@ -1,0 +1,17 @@
+id	url	browser_ok	browser_status	browser_error
+cso_pxstat	https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadDataset/AAA09/JSON-stat/2.0/en	true	200	
+met_agri	https://prodapi.metweb.ie/agriculture/report	true	200	
+met_obs	https://prodapi.metweb.ie/observations/dublin-airport/today	true	200	
+met_warn	https://www.met.ie/Open_Data/json/warning_IRELAND.json	false	null	TypeError:Failedtofetch
+opw_levels	http://waterlevel.ie/geojson/latest/	false	null	TypeError:Failedtofetch
+dafm_lpis_broken	https://geoapi.opendata.agriculture.gov.ie/arcgis/rest/services/LPIS/MapServer/0/query?where=1%3D1&outFields=OBJECTID&geometry=-8.8,51.8,-8.5,52.0&geometryType=esriGeometryEnvelope&spatialRel=esriSpatialRelIntersects&inSR=4326&f=pjson&resultRecordCount=5	false	null	TypeError:Failedtofetch
+dafm_lpis_alt	https://geoapi.opendata.agriculture.gov.ie/shps/collections/anonymous-lpis-and-n-p-for-2020_parcels/items?f=json&bbox=-8.8,51.8,-8.5,52.0&limit=5	false	null	TypeError:Failedtofetch
+dafm_cap_json	https://capben-ui.apps.services.agriculture.gov.ie/assets/capben/2024.json	false	null	TypeError:Failedtofetch
+marine_erddap	https://erddap.marine.ie/erddap/tabledap/IWBNetwork.json?station_id%2Clatitude%2Clongitude&orderBy(%22station_id%22)&distinct()	true	200	
+epa_wms_caps	https://gis.epa.ie/geoserver/wms?SERVICE=WMS&REQUEST=GetCapabilities	true	200	
+epa_wfs_broken	https://gis.epa.ie/geoserver/wfs?service=WFS&version=1.1.0&request=GetFeature&typeName=EPA:IPPC_Licensed_Industries&outputFormat=application/json&maxFeatures=5	true	200	
+epa_wfs_alt	https://gis.epa.ie/geoserver/wfs?service=WFS&version=1.1.0&request=GetFeature&typeName=EPA:AIR_NO2&outputFormat=application/json&maxFeatures=5	true	200	
+epa_wfd_root	https://wfdapi.edenireland.ie	false	null	TypeError:Failedtofetch
+epa_wfd_alt	https://wfdapi.edenireland.ie/api/catchment	true	200	
+tailte_services	https://services-eu1.arcgis.com/FH5XCsx8rYXqnjF5/arcgis/rest/services?f=pjson	true	200	
+gsi_services	https://gsi.geodata.gov.ie/server/rest/services?f=pjson	true	200	

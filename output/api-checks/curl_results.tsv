@@ -1,0 +1,17 @@
+id	url	http_code	time_total	content_type	bytes
+cso_pxstat	https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadDataset/AAA09/JSON-stat/2.0/en	200	0.281829	application/json	58606
+met_agri	https://prodapi.metweb.ie/agriculture/report	200	0.174486	application/json	6401
+met_obs	https://prodapi.metweb.ie/observations/dublin-airport/today	200	0.171628	application/json	2
+met_warn	https://www.met.ie/Open_Data/json/warning_IRELAND.json	200	0.166722	application/json	3
+opw_levels	http://waterlevel.ie/geojson/latest/	200	0.926879	application/json	724505
+dafm_lpis_broken	https://geoapi.opendata.agriculture.gov.ie/arcgis/rest/services/LPIS/MapServer/0/query?where=1%3D1&outFields=OBJECTID&geometry=-8.8,51.8,-8.5,52.0&geometryType=esriGeometryEnvelope&spatialRel=esriSpatialRelIntersects&inSR=4326&f=pjson&resultRecordCount=5	404	0.156456	text/html; charset=utf-8	207
+dafm_lpis_alt	https://geoapi.opendata.agriculture.gov.ie/shps/collections/anonymous-lpis-and-n-p-for-2020_parcels/items?f=json&bbox=-8.8,51.8,-8.5,52.0&limit=5	200	0.253744	application/json	36467
+dafm_cap_json	https://capben-ui.apps.services.agriculture.gov.ie/assets/capben/2024.json	200	0.850935	application/json	19161987
+marine_erddap	https://erddap.marine.ie/erddap/tabledap/IWBNetwork.json?station_id%2Clatitude%2Clongitude&orderBy(%22station_id%22)&distinct()	200	0.173035	application/json;charset=UTF-8	531
+epa_wms_caps	https://gis.epa.ie/geoserver/wms?SERVICE=WMS&REQUEST=GetCapabilities	200	2.561978	text/xml	1209395
+epa_wfs_broken	https://gis.epa.ie/geoserver/wfs?service=WFS&version=1.1.0&request=GetFeature&typeName=EPA:IPPC_Licensed_Industries&outputFormat=application/json&maxFeatures=5	200	0.273593	application/xml	546
+epa_wfs_alt	https://gis.epa.ie/geoserver/wfs?service=WFS&version=1.1.0&request=GetFeature&typeName=EPA:AIR_NO2&outputFormat=application/json&maxFeatures=5	200	0.706492	application/json;charset=UTF-8	11054376
+epa_wfd_root	https://wfdapi.edenireland.ie	403	0.161412	text/html	1233
+epa_wfd_alt	https://wfdapi.edenireland.ie/api/catchment	200	0.149191	application/json; charset=utf-8	5559
+tailte_services	https://services-eu1.arcgis.com/FH5XCsx8rYXqnjF5/arcgis/rest/services?f=pjson	200	1.201049	application/json; charset=utf-8	43540
+gsi_services	https://gsi.geodata.gov.ie/server/rest/services?f=pjson	200	0.175371	text/plain;charset=UTF-8	736

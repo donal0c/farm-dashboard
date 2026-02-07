@@ -1,0 +1,142 @@
+[
+  {
+    "species": "Otter",
+    "protected": true,
+    "lat": 53.3498,
+    "lng": -6.2603,
+    "source": "NBDC sample"
+  },
+  {
+    "species": "Curlew",
+    "protected": true,
+    "lat": 53.1424,
+    "lng": -7.6921,
+    "source": "NBDC sample"
+  },
+  {
+    "species": "Barn Owl",
+    "protected": true,
+    "lat": 52.668,
+    "lng": -8.6305,
+    "source": "NBDC sample"
+  },
+  {
+    "species": "Red Squirrel",
+    "protected": true,
+    "lat": 54.597,
+    "lng": -5.93,
+    "source": "NBDC sample"
+  },
+  {
+    "species": "Pine Marten",
+    "protected": true,
+    "lat": 53.2747,
+    "lng": -9.051,
+    "source": "NBDC sample"
+  },
+  {
+    "species": "Hedgehog",
+    "protected": false,
+    "lat": 52.2583,
+    "lng": -7.1119,
+    "source": "NBDC sample"
+  },
+  {
+    "species": "Irish Hare",
+    "protected": true,
+    "lat": 54.271,
+    "lng": -8.4756,
+    "source": "NBDC sample"
+  },
+  {
+    "species": "Common Frog",
+    "protected": false,
+    "lat": 53.2707,
+    "lng": -9.0568,
+    "source": "NBDC sample"
+  },
+  {
+    "species": "Marsh Fritillary",
+    "protected": true,
+    "lat": 52.6541,
+    "lng": -8.6208,
+    "source": "NBDC sample"
+  },
+  {
+    "species": "Whooper Swan",
+    "protected": true,
+    "lat": 54.6538,
+    "lng": -8.1112,
+    "source": "NBDC sample"
+  },
+  {
+    "species": "Kingfisher",
+    "protected": true,
+    "lat": 52.335,
+    "lng": -6.462,
+    "source": "NBDC sample"
+  },
+  {
+    "species": "Salmon",
+    "protected": true,
+    "lat": 52.2593,
+    "lng": -9.7026,
+    "source": "NBDC sample"
+  },
+  {
+    "species": "Lapwing",
+    "protected": true,
+    "lat": 53.75,
+    "lng": -7.8,
+    "source": "NBDC sample"
+  },
+  {
+    "species": "Corncrake",
+    "protected": true,
+    "lat": 55.05,
+    "lng": -8.3,
+    "source": "NBDC sample"
+  },
+  {
+    "species": "Natterjack Toad",
+    "protected": true,
+    "lat": 52.14,
+    "lng": -10.28,
+    "source": "NBDC sample"
+  },
+  {
+    "species": "Irish Lady's-tresses",
+    "protected": true,
+    "lat": 51.65,
+    "lng": -9.91,
+    "source": "NBDC sample"
+  },
+  {
+    "species": "Lesser Horseshoe Bat",
+    "protected": true,
+    "lat": 52.1,
+    "lng": -9.5,
+    "source": "NBDC sample"
+  },
+  {
+    "species": "Badger",
+    "protected": false,
+    "lat": 53.42,
+    "lng": -6.2,
+    "source": "NBDC sample"
+  },
+  {
+    "species": "Snipe",
+    "protected": false,
+    "lat": 53.63,
+    "lng": -8.19,
+    "source": "NBDC sample"
+  },
+  {
+    "species": "Green-winged Orchid",
+    "protected": true,
+    "lat": 53.021,
+    "lng": -9.021,
+    "source": "NBDC sample"
+  }
+]

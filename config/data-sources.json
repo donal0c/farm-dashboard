@@ -1,0 +1,101 @@
+{
+  "generatedAt": "2026-02-07",
+  "sources": [
+    {
+      "id": "cso_pxstat",
+      "name": "CSO PxStat AAA09",
+      "url": "https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadDataset/AAA09/JSON-stat/2.0/en",
+      "classification": "browser-safe"
+    },
+    {
+      "id": "met_agri",
+      "name": "Met Eireann Agriculture Report",
+      "url": "https://prodapi.metweb.ie/agriculture/report",
+      "classification": "browser-safe"
+    },
+    {
+      "id": "met_obs",
+      "name": "Met Eireann Observations (Dublin Airport Today)",
+      "url": "https://prodapi.metweb.ie/observations/dublin-airport/today",
+      "classification": "browser-safe"
+    },
+    {
+      "id": "met_warn",
+      "name": "Met Eireann Warnings",
+      "url": "https://www.met.ie/Open_Data/json/warning_IRELAND.json",
+      "classification": "needs-proxy"
+    },
+    {
+      "id": "opw_levels",
+      "name": "OPW Water Levels",
+      "url": "http://waterlevel.ie/geojson/latest/",
+      "classification": "broken-or-replace"
+    },
+    {
+      "id": "dafm_lpis_broken",
+      "name": "DAFM LPIS ArcGIS (legacy path)",
+      "url": "https://geoapi.opendata.agriculture.gov.ie/arcgis/rest/services/LPIS/MapServer/0/query?where=1%3D1&outFields=OBJECTID&geometry=-8.8,51.8,-8.5,52.0&geometryType=esriGeometryEnvelope&spatialRel=esriSpatialRelIntersects&inSR=4326&f=pjson&resultRecordCount=5",
+      "classification": "broken-or-replace"
+    },
+    {
+      "id": "dafm_lpis_alt",
+      "name": "DAFM LPIS OGC API (2020 Parcels)",
+      "url": "https://geoapi.opendata.agriculture.gov.ie/shps/collections/anonymous-lpis-and-n-p-for-2020_parcels/items?f=json&bbox=-8.8,51.8,-8.5,52.0&limit=5",
+      "classification": "needs-proxy"
+    },
+    {
+      "id": "dafm_cap_json",
+      "name": "DAFM CAP JSON 2024",
+      "url": "https://capben-ui.apps.services.agriculture.gov.ie/assets/capben/2024.json",
+      "classification": "needs-proxy"
+    },
+    {
+      "id": "marine_erddap",
+      "name": "Marine Institute ERDDAP IWBNetwork",
+      "url": "https://erddap.marine.ie/erddap/tabledap/IWBNetwork.json?station_id%2Clatitude%2Clongitude&orderBy(%22station_id%22)&distinct()",
+      "classification": "browser-safe"
+    },
+    {
+      "id": "epa_wms_caps",
+      "name": "EPA WMS GetCapabilities",
+      "url": "https://gis.epa.ie/geoserver/wms?SERVICE=WMS&REQUEST=GetCapabilities",
+      "classification": "browser-safe"
+    },
+    {
+      "id": "epa_wfs_broken",
+      "name": "EPA WFS sample (invalid layer)",
+      "url": "https://gis.epa.ie/geoserver/wfs?service=WFS&version=1.1.0&request=GetFeature&typeName=EPA:IPPC_Licensed_Industries&outputFormat=application/json&maxFeatures=5",
+      "classification": "broken-or-replace"
+    },
+    {
+      "id": "epa_wfs_alt",
+      "name": "EPA WFS sample (valid AIR_NO2 layer)",
+      "url": "https://gis.epa.ie/geoserver/wfs?service=WFS&version=1.1.0&request=GetFeature&typeName=EPA:AIR_NO2&outputFormat=application/json&maxFeatures=5",
+      "classification": "browser-safe"
+    },
+    {
+      "id": "epa_wfd_root",
+      "name": "EPA WFD Root",
+      "url": "https://wfdapi.edenireland.ie",
+      "classification": "broken-or-replace"
+    },
+    {
+      "id": "epa_wfd_alt",
+      "name": "EPA WFD Catchment API",
+      "url": "https://wfdapi.edenireland.ie/api/catchment",
+      "classification": "browser-safe"
+    },
+    {
+      "id": "tailte_services",
+      "name": "Tailte Eireann ArcGIS Services Directory",
+      "url": "https://services-eu1.arcgis.com/FH5XCsx8rYXqnjF5/arcgis/rest/services?f=pjson",
+      "classification": "browser-safe"
+    },
+    {
+      "id": "gsi_services",
+      "name": "GSI ArcGIS Services Directory",
+      "url": "https://gsi.geodata.gov.ie/server/rest/services?f=pjson",
+      "classification": "browser-safe"
+    }
+  ]
+}

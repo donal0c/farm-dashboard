@@ -1,0 +1,17 @@
+id	url	http_code	acao	acac	vary
+cso_pxstat	https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadDataset/AAA09/JSON-stat/2.0/en	200	https://example.com	true	Origin
+met_agri	https://prodapi.metweb.ie/agriculture/report	200	*	true	
+met_obs	https://prodapi.metweb.ie/observations/dublin-airport/today	200	*	true	
+met_warn	https://www.met.ie/Open_Data/json/warning_IRELAND.json	200			
+opw_levels	http://waterlevel.ie/geojson/latest/	200			
+dafm_lpis_broken	https://geoapi.opendata.agriculture.gov.ie/arcgis/rest/services/LPIS/MapServer/0/query?where=1%3D1&outFields=OBJECTID&geometry=-8.8,51.8,-8.5,52.0&geometryType=esriGeometryEnvelope&spatialRel=esriSpatialRelIntersects&inSR=4326&f=pjson&resultRecordCount=5	404			
+dafm_lpis_alt	https://geoapi.opendata.agriculture.gov.ie/shps/collections/anonymous-lpis-and-n-p-for-2020_parcels/items?f=json&bbox=-8.8,51.8,-8.5,52.0&limit=5	200			
+dafm_cap_json	https://capben-ui.apps.services.agriculture.gov.ie/assets/capben/2024.json	200			Accept-Encoding
+marine_erddap	https://erddap.marine.ie/erddap/tabledap/IWBNetwork.json?station_id%2Clatitude%2Clongitude&orderBy(%22station_id%22)&distinct()	200	*		
+epa_wms_caps	https://gis.epa.ie/geoserver/wms?SERVICE=WMS&REQUEST=GetCapabilities	200	*		Accept-Encoding
+epa_wfs_broken	https://gis.epa.ie/geoserver/wfs?service=WFS&version=1.1.0&request=GetFeature&typeName=EPA:IPPC_Licensed_Industries&outputFormat=application/json&maxFeatures=5	200	*		Accept-Encoding
+epa_wfs_alt	https://gis.epa.ie/geoserver/wfs?service=WFS&version=1.1.0&request=GetFeature&typeName=EPA:AIR_NO2&outputFormat=application/json&maxFeatures=5	200	*		
+epa_wfd_root	https://wfdapi.edenireland.ie	403			
+epa_wfd_alt	https://wfdapi.edenireland.ie/api/catchment	200	*		
+tailte_services	https://services-eu1.arcgis.com/FH5XCsx8rYXqnjF5/arcgis/rest/services?f=pjson	200	*	true	X-Esri-Authorization
+gsi_services	https://gsi.geodata.gov.ie/server/rest/services?f=pjson	200	https://example.com	true	Origin,Accept-Encoding
