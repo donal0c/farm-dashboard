@@ -2,6 +2,7 @@
 
 import "maplibre-gl/dist/maplibre-gl.css";
 
+import { useEffect, useState } from "react";
 import MapView, { Layer, Source } from "react-map-gl/maplibre";
 
 type LatLng = { latitude: number; longitude: number };
@@ -26,18 +27,28 @@ export function IrelandMap({
   showSoilLayer,
   showNitrateLayer,
 }: IrelandMapProps) {
+  const [viewState, setViewState] = useState({
+    longitude: center.longitude,
+    latitude: center.latitude,
+    zoom: 10,
+  });
+
+  useEffect(() => {
+    setViewState((current) => ({
+      ...current,
+      longitude: center.longitude,
+      latitude: center.latitude,
+    }));
+  }, [center.latitude, center.longitude]);
+
   return (
     <div className="h-[420px] w-full overflow-hidden rounded-lg border border-border">
       <MapView
         mapStyle="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
-        initialViewState={{
-          longitude: -7.5,
-          latitude: 53.5,
-          zoom: 6.5,
+        {...viewState}
+        onMove={(event) => {
+          setViewState(event.viewState);
         }}
-        longitude={center.longitude}
-        latitude={center.latitude}
-        zoom={10}
         onClick={(event) => {
           onPickLocation({
             longitude: event.lngLat.lng,

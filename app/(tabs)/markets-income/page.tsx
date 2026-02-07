@@ -8,7 +8,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import ReactECharts from "echarts-for-react";
-import { useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
   Card,
   CardContent,
@@ -42,12 +42,42 @@ const currency = new Intl.NumberFormat("en-IE", {
   maximumFractionDigits: 0,
 });
 
+const queryDefaults = {
+  staleTime: 30 * 60 * 1000,
+  gcTime: 60 * 60 * 1000,
+  refetchOnWindowFocus: false as const,
+  refetchOnReconnect: false as const,
+  retry: 1,
+};
+
+const chartDefaults = {
+  notMerge: true,
+  lazyUpdate: true,
+  opts: { renderer: "svg" as const },
+};
+
 async function fetchCso(dataset: string) {
   const response = await fetch(`/api/data/cso/${dataset}`);
   if (!response.ok) {
     throw new Error(`Failed to load ${dataset}`);
   }
   return (await response.json()) as JsonStatDataset;
+}
+
+function safeDecode(dataset?: JsonStatDataset | null) {
+  if (!dataset) {
+    return [];
+  }
+
+  try {
+    return decodeJsonStat(dataset);
+  } catch {
+    return [];
+  }
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
 
 function collectYears(rows: JsonStatRow[], timeDimension: string) {
@@ -133,34 +163,42 @@ export default function MarketsIncomePage() {
   const aea01 = useQuery({
     queryKey: ["cso", "AEA01"],
     queryFn: () => fetchCso("AEA01"),
+    ...queryDefaults,
   });
   const aca03 = useQuery({
     queryKey: ["cso", "ACA03"],
     queryFn: () => fetchCso("ACA03"),
+    ...queryDefaults,
   });
   const ahm05 = useQuery({
     queryKey: ["cso", "AHM05"],
     queryFn: () => fetchCso("AHM05"),
+    ...queryDefaults,
   });
   const aaa09 = useQuery({
     queryKey: ["cso", "AAA09"],
     queryFn: () => fetchCso("AAA09"),
+    ...queryDefaults,
   });
   const adm01 = useQuery({
     queryKey: ["cso", "ADM01"],
     queryFn: () => fetchCso("ADM01"),
+    ...queryDefaults,
   });
   const akm03 = useQuery({
     queryKey: ["cso", "AKM03"],
     queryFn: () => fetchCso("AKM03"),
+    ...queryDefaults,
   });
   const ajm09 = useQuery({
     queryKey: ["cso", "AJM09"],
     queryFn: () => fetchCso("AJM09"),
+    ...queryDefaults,
   });
   const pfsa03 = useQuery({
     queryKey: ["cso", "PFSA03"],
     queryFn: () => fetchCso("PFSA03"),
+    ...queryDefaults,
   });
 
   const exportsQuery = useQuery({
@@ -172,6 +210,7 @@ export default function MarketsIncomePage() {
       }
       return (await response.json()) as ExportRow[];
     },
+    ...queryDefaults,
   });
 
   const capCountyQuery = useQuery({
@@ -183,18 +222,19 @@ export default function MarketsIncomePage() {
       }
       return (await response.json()) as CountyAggregate[];
     },
+    ...queryDefaults,
   });
 
   const decoded = useMemo(() => {
     return {
-      aea01: aea01.data ? decodeJsonStat(aea01.data) : [],
-      aca03: aca03.data ? decodeJsonStat(aca03.data) : [],
-      ahm05: ahm05.data ? decodeJsonStat(ahm05.data) : [],
-      aaa09: aaa09.data ? decodeJsonStat(aaa09.data) : [],
-      adm01: adm01.data ? decodeJsonStat(adm01.data) : [],
-      akm03: akm03.data ? decodeJsonStat(akm03.data) : [],
-      ajm09: ajm09.data ? decodeJsonStat(ajm09.data) : [],
-      pfsa03: pfsa03.data ? decodeJsonStat(pfsa03.data) : [],
+      aea01: safeDecode(aea01.data),
+      aca03: safeDecode(aca03.data),
+      ahm05: safeDecode(ahm05.data),
+      aaa09: safeDecode(aaa09.data),
+      adm01: safeDecode(adm01.data),
+      akm03: safeDecode(akm03.data),
+      ajm09: safeDecode(ajm09.data),
+      pfsa03: safeDecode(pfsa03.data),
     };
   }, [
     aea01.data,
@@ -227,13 +267,50 @@ export default function MarketsIncomePage() {
   const [fromYear, setFromYear] = useState(Math.max(minYear, maxYear - 8));
   const [toYear, setToYear] = useState(maxYear);
   const [region, setRegion] = useState("-");
+  const [showExtendedCharts, setShowExtendedCharts] = useState(false);
+  const [draftFromYear, setDraftFromYear] = useState(String(fromYear));
+  const [draftToYear, setDraftToYear] = useState(String(toYear));
+  const effectiveToYear = Number.isFinite(toYear)
+    ? clamp(toYear, minYear, maxYear)
+    : maxYear;
+  const effectiveFromYear = Number.isFinite(fromYear)
+    ? clamp(fromYear, minYear, effectiveToYear)
+    : Math.max(minYear, effectiveToYear - 8);
+  const dataFromYear = useDeferredValue(effectiveFromYear);
+  const dataToYear = useDeferredValue(effectiveToYear);
+
+  useEffect(() => {
+    setDraftFromYear(String(fromYear));
+  }, [fromYear]);
+
+  useEffect(() => {
+    setDraftToYear(String(toYear));
+  }, [toYear]);
+
+  const applyDraftYears = () => {
+    const parsedFrom = Number.parseInt(draftFromYear, 10);
+    const parsedTo = Number.parseInt(draftToYear, 10);
+
+    const nextTo = Number.isFinite(parsedTo)
+      ? clamp(parsedTo, minYear, maxYear)
+      : effectiveToYear;
+    const nextFrom = Number.isFinite(parsedFrom)
+      ? clamp(parsedFrom, minYear, nextTo)
+      : effectiveFromYear;
+
+    setFromYear(nextFrom);
+    setToYear(nextTo);
+  };
 
   const regionOptions = useMemo(() => {
     const map = new Map<string, string>();
     for (const row of decoded.aca03) {
       map.set(String(row.C02196V04140), String(row.C02196V04140_label));
     }
-    return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+    const options = Array.from(map.entries()).sort((a, b) =>
+      a[1].localeCompare(b[1]),
+    );
+    return options.length ? options : [["-", "State"]];
   }, [decoded.aca03]);
 
   const outputSeries = useMemo(() => {
@@ -241,29 +318,29 @@ export default function MarketsIncomePage() {
       decoded.aea01,
       "TLIST(A1)",
       { STATISTIC: "AEA01C02", C02196V02652: "-" },
-      fromYear,
-      toYear,
+      dataFromYear,
+      dataToYear,
     );
     const milk = sumByYear(
       decoded.aea01,
       "TLIST(A1)",
       { STATISTIC: "AEA01C08", C02196V02652: "-" },
-      fromYear,
-      toYear,
+      dataFromYear,
+      dataToYear,
     );
     const sheep = sumByYear(
       decoded.aea01,
       "TLIST(A1)",
       { STATISTIC: "AEA01C04", C02196V02652: "-" },
-      fromYear,
-      toYear,
+      dataFromYear,
+      dataToYear,
     );
     const crops = sumByYear(
       decoded.aea01,
       "TLIST(A1)",
       { STATISTIC: "AEA01C10", C02196V02652: "-" },
-      fromYear,
-      toYear,
+      dataFromYear,
+      dataToYear,
     );
 
     const years = Array.from(
@@ -285,10 +362,10 @@ export default function MarketsIncomePage() {
         (year) => crops.find((row) => row.year === year)?.value ?? 0,
       ),
     };
-  }, [decoded.aea01, fromYear, toYear]);
+  }, [decoded.aea01, dataFromYear, dataToYear]);
 
   const regionalComparison = useMemo(() => {
-    const currentYear = toYear;
+    const currentYear = dataToYear;
     const regionalRows = decoded.aca03.filter(
       (row) =>
         parseYear(String(row["TLIST(A1)"])) === currentYear &&
@@ -302,7 +379,7 @@ export default function MarketsIncomePage() {
         value: Number(row.value),
       }))
       .sort((a, b) => b.value - a.value);
-  }, [decoded.aca03, toYear]);
+  }, [decoded.aca03, dataToYear]);
 
   const pricesSeries = useMemo(() => {
     const monthly = {
@@ -310,29 +387,29 @@ export default function MarketsIncomePage() {
         decoded.ahm05,
         "TLIST(M1)",
         { STATISTIC: "AHM05C01", C02818V03389: "01211" },
-        fromYear,
-        toYear,
+        dataFromYear,
+        dataToYear,
       ),
       milk: sumByPeriodLabel(
         decoded.ahm05,
         "TLIST(M1)",
         { STATISTIC: "AHM05C01", C02818V03389: "01221" },
-        fromYear,
-        toYear,
+        dataFromYear,
+        dataToYear,
       ),
       sheep: sumByPeriodLabel(
         decoded.ahm05,
         "TLIST(M1)",
         { STATISTIC: "AHM05C01", C02818V03389: "01213" },
-        fromYear,
-        toYear,
+        dataFromYear,
+        dataToYear,
       ),
       crops: sumByPeriodLabel(
         decoded.ahm05,
         "TLIST(M1)",
         { STATISTIC: "AHM05C01", C02818V03389: "011" },
-        fromYear,
-        toYear,
+        dataFromYear,
+        dataToYear,
       ),
     };
 
@@ -360,7 +437,7 @@ export default function MarketsIncomePage() {
         (label) => monthly.crops.find((row) => row.label === label)?.value ?? 0,
       ),
     };
-  }, [decoded.ahm05, fromYear, toYear]);
+  }, [decoded.ahm05, dataFromYear, dataToYear]);
 
   const livestockNumbers = useMemo(() => {
     const rows = {
@@ -368,22 +445,22 @@ export default function MarketsIncomePage() {
         decoded.aaa09,
         "TLIST(A1)",
         { STATISTIC: "AAA09", C02148V02965: "01", C02196V04140: region },
-        fromYear,
-        toYear,
+        dataFromYear,
+        dataToYear,
       ),
       sheep: sumByYear(
         decoded.aaa09,
         "TLIST(A1)",
         { STATISTIC: "AAA09", C02148V02965: "02", C02196V04140: region },
-        fromYear,
-        toYear,
+        dataFromYear,
+        dataToYear,
       ),
       pigs: sumByYear(
         decoded.aaa09,
         "TLIST(A1)",
         { STATISTIC: "AAA09", C02148V02965: "03", C02196V04140: region },
-        fromYear,
-        toYear,
+        dataFromYear,
+        dataToYear,
       ),
     };
 
@@ -407,7 +484,7 @@ export default function MarketsIncomePage() {
         (year) => rows.pigs.find((row) => row.year === year)?.value ?? 0,
       ),
     };
-  }, [decoded.aaa09, fromYear, toYear, region]);
+  }, [decoded.aaa09, dataFromYear, dataToYear, region]);
 
   const slaughterings = useMemo(() => {
     const rows = {
@@ -415,22 +492,22 @@ export default function MarketsIncomePage() {
         decoded.adm01,
         "TLIST(M1)",
         { STATISTIC: "ADM01C1", C02079V02513: "5009" },
-        fromYear,
-        toYear,
+        dataFromYear,
+        dataToYear,
       ),
       sheep: sumByPeriodLabel(
         decoded.adm01,
         "TLIST(M1)",
         { STATISTIC: "ADM01C1", C02079V02513: "2" },
-        fromYear,
-        toYear,
+        dataFromYear,
+        dataToYear,
       ),
       pigs: sumByPeriodLabel(
         decoded.adm01,
         "TLIST(M1)",
         { STATISTIC: "ADM01C1", C02079V02513: "3" },
-        fromYear,
-        toYear,
+        dataFromYear,
+        dataToYear,
       ),
     };
 
@@ -454,7 +531,7 @@ export default function MarketsIncomePage() {
         (label) => rows.pigs.find((row) => row.label === label)?.value ?? 0,
       ),
     };
-  }, [decoded.adm01, fromYear, toYear]);
+  }, [decoded.adm01, dataFromYear, dataToYear]);
 
   const dairyProduction = useMemo(() => {
     const rows = {
@@ -462,22 +539,22 @@ export default function MarketsIncomePage() {
         decoded.akm03,
         "TLIST(M1)",
         { STATISTIC: "AKM03", C02064V02491: "003" },
-        fromYear,
-        toYear,
+        dataFromYear,
+        dataToYear,
       ),
       butter: sumByPeriodLabel(
         decoded.akm03,
         "TLIST(M1)",
         { STATISTIC: "AKM03", C02064V02491: "004" },
-        fromYear,
-        toYear,
+        dataFromYear,
+        dataToYear,
       ),
       skimmedPowder: sumByPeriodLabel(
         decoded.akm03,
         "TLIST(M1)",
         { STATISTIC: "AKM03", C02064V02491: "021" },
-        fromYear,
-        toYear,
+        dataFromYear,
+        dataToYear,
       ),
     };
 
@@ -502,7 +579,7 @@ export default function MarketsIncomePage() {
           rows.skimmedPowder.find((row) => row.label === label)?.value ?? 0,
       ),
     };
-  }, [decoded.akm03, fromYear, toYear]);
+  }, [decoded.akm03, dataFromYear, dataToYear]);
 
   const fertiliser = useMemo(() => {
     const prices = {
@@ -510,15 +587,15 @@ export default function MarketsIncomePage() {
         decoded.ajm09,
         "TLIST(M1)",
         { STATISTIC: "AJM09C01", C02069V02500: "001" },
-        fromYear,
-        toYear,
+        dataFromYear,
+        dataToYear,
       ),
       urea: sumByPeriodLabel(
         decoded.ajm09,
         "TLIST(M1)",
         { STATISTIC: "AJM09C01", C02069V02500: "002" },
-        fromYear,
-        toYear,
+        dataFromYear,
+        dataToYear,
       ),
     };
 
@@ -526,8 +603,8 @@ export default function MarketsIncomePage() {
       decoded.pfsa03,
       "TLIST(Q1)",
       { STATISTIC: "PFSA03C01", C02196V02652: "-" },
-      fromYear,
-      toYear,
+      dataFromYear,
+      dataToYear,
     );
 
     const labels = Array.from(
@@ -544,7 +621,7 @@ export default function MarketsIncomePage() {
       ),
       sales,
     };
-  }, [decoded.ajm09, decoded.pfsa03, fromYear, toYear]);
+  }, [decoded.ajm09, decoded.pfsa03, dataFromYear, dataToYear]);
 
   const exportsByYear = useMemo(() => {
     const totals = new Map<number, number>();
@@ -597,8 +674,8 @@ export default function MarketsIncomePage() {
       decoded.aea01,
       "TLIST(A1)",
       { STATISTIC: "AEA01C55", C02196V02652: "-" },
-      fromYear,
-      toYear,
+      dataFromYear,
+      dataToYear,
     ),
   );
   const kpiExports = exportsByYear.length
@@ -617,6 +694,18 @@ export default function MarketsIncomePage() {
     akm03.isLoading ||
     ajm09.isLoading ||
     pfsa03.isLoading;
+  const datasetErrors = [
+    ["AEA01", aea01.error],
+    ["ACA03", aca03.error],
+    ["AHM05", ahm05.error],
+    ["AAA09", aaa09.error],
+    ["ADM01", adm01.error],
+    ["AKM03", akm03.error],
+    ["AJM09", ajm09.error],
+    ["PFSA03", pfsa03.error],
+    ["exports", exportsQuery.error],
+    ["cap-counties", capCountyQuery.error],
+  ].filter((entry): entry is [string, Error] => entry[1] instanceof Error);
 
   return (
     <div className="grid gap-6">
@@ -647,9 +736,17 @@ export default function MarketsIncomePage() {
             <input
               type="number"
               min={minYear}
-              max={toYear}
-              value={fromYear}
-              onChange={(event) => setFromYear(Number(event.target.value))}
+              max={effectiveToYear}
+              value={draftFromYear}
+              onChange={(event) => {
+                setDraftFromYear(event.target.value);
+              }}
+              onBlur={applyDraftYears}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  applyDraftYears();
+                }
+              }}
               className="h-10 rounded-md border border-input bg-background px-3"
             />
           </label>
@@ -659,8 +756,16 @@ export default function MarketsIncomePage() {
               type="number"
               min={fromYear}
               max={maxYear}
-              value={toYear}
-              onChange={(event) => setToYear(Number(event.target.value))}
+              value={draftToYear}
+              onChange={(event) => {
+                setDraftToYear(event.target.value);
+              }}
+              onBlur={applyDraftYears}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  applyDraftYears();
+                }
+              }}
               className="h-10 rounded-md border border-input bg-background px-3"
             />
           </label>
@@ -699,8 +804,10 @@ export default function MarketsIncomePage() {
         </CardHeader>
         <CardContent>
           <ReactECharts
+            {...chartDefaults}
             style={{ height: 360 }}
             option={{
+              animation: false,
               tooltip: { trigger: "axis" },
               legend: { data: ["Cattle", "Milk", "Sheep", "Crops"] },
               xAxis: { type: "category", data: outputSeries.years },
@@ -727,8 +834,10 @@ export default function MarketsIncomePage() {
           </CardHeader>
           <CardContent>
             <ReactECharts
+              {...chartDefaults}
               style={{ height: 360 }}
               option={{
+                animation: false,
                 tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
                 xAxis: { type: "value" },
                 yAxis: {
@@ -755,8 +864,10 @@ export default function MarketsIncomePage() {
           </CardHeader>
           <CardContent>
             <ReactECharts
+              {...chartDefaults}
               style={{ height: 360 }}
               option={{
+                animation: false,
                 tooltip: { trigger: "axis" },
                 xAxis: { type: "category", data: pricesSeries.labels },
                 yAxis: { type: "value" },
@@ -773,243 +884,322 @@ export default function MarketsIncomePage() {
         </Card>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
+      {!showExtendedCharts ? (
         <Card>
           <CardHeader>
-            <CardTitle>Livestock Numbers (CSO AAA09)</CardTitle>
+            <CardTitle>Extended Analytics</CardTitle>
             <CardDescription>
-              Region-aware annual livestock headcount.
+              Load additional charts (livestock, dairy, fertiliser, exports, and
+              CAP table) on demand to keep this tab responsive on first load.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ReactECharts
-              style={{ height: 320 }}
-              option={{
-                tooltip: { trigger: "axis" },
-                xAxis: { type: "category", data: livestockNumbers.years },
-                yAxis: { type: "value" },
-                series: [
-                  {
-                    name: "Cattle",
-                    type: "line",
-                    data: livestockNumbers.cattle,
-                  },
-                  { name: "Sheep", type: "line", data: livestockNumbers.sheep },
-                  { name: "Pigs", type: "line", data: livestockNumbers.pigs },
-                ],
-              }}
-            />
+            <button
+              type="button"
+              onClick={() => setShowExtendedCharts(true)}
+              className="inline-flex h-10 items-center rounded-md border border-input bg-background px-4 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+            >
+              Load full analytics
+            </button>
           </CardContent>
         </Card>
+      ) : (
+        <>
+          <section className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Livestock Numbers (CSO AAA09)</CardTitle>
+                <CardDescription>
+                  Region-aware annual livestock headcount.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ReactECharts
+                  {...chartDefaults}
+                  style={{ height: 320 }}
+                  option={{
+                    animation: false,
+                    tooltip: { trigger: "axis" },
+                    xAxis: { type: "category", data: livestockNumbers.years },
+                    yAxis: { type: "value" },
+                    series: [
+                      {
+                        name: "Cattle",
+                        type: "line",
+                        data: livestockNumbers.cattle,
+                      },
+                      {
+                        name: "Sheep",
+                        type: "line",
+                        data: livestockNumbers.sheep,
+                      },
+                      {
+                        name: "Pigs",
+                        type: "line",
+                        data: livestockNumbers.pigs,
+                      },
+                    ],
+                  }}
+                />
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Slaughterings (CSO ADM01)</CardTitle>
-            <CardDescription>
-              Monthly livestock slaughter counts.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ReactECharts
-              style={{ height: 320 }}
-              option={{
-                tooltip: { trigger: "axis" },
-                xAxis: { type: "category", data: slaughterings.labels },
-                yAxis: { type: "value" },
-                dataZoom: [{ type: "inside" }, { type: "slider" }],
-                series: [
-                  { name: "Cattle", type: "line", data: slaughterings.cattle },
-                  { name: "Sheep", type: "line", data: slaughterings.sheep },
-                  { name: "Pigs", type: "line", data: slaughterings.pigs },
-                ],
-              }}
-            />
-          </CardContent>
-        </Card>
-      </section>
+            <Card>
+              <CardHeader>
+                <CardTitle>Slaughterings (CSO ADM01)</CardTitle>
+                <CardDescription>
+                  Monthly livestock slaughter counts.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ReactECharts
+                  {...chartDefaults}
+                  style={{ height: 320 }}
+                  option={{
+                    animation: false,
+                    tooltip: { trigger: "axis" },
+                    xAxis: { type: "category", data: slaughterings.labels },
+                    yAxis: { type: "value" },
+                    dataZoom: [{ type: "inside" }, { type: "slider" }],
+                    series: [
+                      {
+                        name: "Cattle",
+                        type: "line",
+                        data: slaughterings.cattle,
+                      },
+                      {
+                        name: "Sheep",
+                        type: "line",
+                        data: slaughterings.sheep,
+                      },
+                      { name: "Pigs", type: "line", data: slaughterings.pigs },
+                    ],
+                  }}
+                />
+              </CardContent>
+            </Card>
+          </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Dairy Production (CSO AKM03)</CardTitle>
-            <CardDescription>
-              Cheese, butter, and skimmed milk powder production.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ReactECharts
-              style={{ height: 320 }}
-              option={{
-                tooltip: { trigger: "axis" },
-                xAxis: { type: "category", data: dairyProduction.labels },
-                yAxis: { type: "value" },
-                dataZoom: [{ type: "inside" }, { type: "slider" }],
-                series: [
-                  {
-                    name: "Cheese",
-                    type: "line",
-                    data: dairyProduction.cheese,
-                  },
-                  {
-                    name: "Butter",
-                    type: "line",
-                    data: dairyProduction.butter,
-                  },
-                  {
-                    name: "Skimmed Milk Powder",
-                    type: "line",
-                    data: dairyProduction.skimmedPowder,
-                  },
-                ],
-              }}
-            />
-          </CardContent>
-        </Card>
+          <section className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Dairy Production (CSO AKM03)</CardTitle>
+                <CardDescription>
+                  Cheese, butter, and skimmed milk powder production.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ReactECharts
+                  {...chartDefaults}
+                  style={{ height: 320 }}
+                  option={{
+                    animation: false,
+                    tooltip: { trigger: "axis" },
+                    xAxis: { type: "category", data: dairyProduction.labels },
+                    yAxis: { type: "value" },
+                    dataZoom: [{ type: "inside" }, { type: "slider" }],
+                    series: [
+                      {
+                        name: "Cheese",
+                        type: "line",
+                        data: dairyProduction.cheese,
+                      },
+                      {
+                        name: "Butter",
+                        type: "line",
+                        data: dairyProduction.butter,
+                      },
+                      {
+                        name: "Skimmed Milk Powder",
+                        type: "line",
+                        data: dairyProduction.skimmedPowder,
+                      },
+                    ],
+                  }}
+                />
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Fertiliser Prices and Sales</CardTitle>
-            <CardDescription>
-              CSO AJM09 prices and PFSA03 quarterly sales share.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <ReactECharts
-              style={{ height: 240 }}
-              option={{
-                tooltip: { trigger: "axis" },
-                xAxis: { type: "category", data: fertiliser.labels },
-                yAxis: { type: "value" },
-                series: [
-                  { name: "CAN", type: "line", data: fertiliser.can },
-                  { name: "Urea", type: "line", data: fertiliser.urea },
-                ],
-              }}
-            />
-            <ReactECharts
-              style={{ height: 180 }}
-              option={{
-                tooltip: { trigger: "axis" },
-                xAxis: {
-                  type: "category",
-                  data: fertiliser.sales.map((row) => row.label),
-                },
-                yAxis: { type: "value" },
-                series: [
-                  {
-                    type: "bar",
-                    data: fertiliser.sales.map((row) => row.value),
-                  },
-                ],
-              }}
-            />
-          </CardContent>
-        </Card>
-      </section>
+            <Card>
+              <CardHeader>
+                <CardTitle>Fertiliser Prices and Sales</CardTitle>
+                <CardDescription>
+                  CSO AJM09 prices and PFSA03 quarterly sales share.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <ReactECharts
+                  {...chartDefaults}
+                  style={{ height: 240 }}
+                  option={{
+                    animation: false,
+                    tooltip: { trigger: "axis" },
+                    xAxis: { type: "category", data: fertiliser.labels },
+                    yAxis: { type: "value" },
+                    series: [
+                      { name: "CAN", type: "line", data: fertiliser.can },
+                      { name: "Urea", type: "line", data: fertiliser.urea },
+                    ],
+                  }}
+                />
+                <ReactECharts
+                  {...chartDefaults}
+                  style={{ height: 180 }}
+                  option={{
+                    animation: false,
+                    tooltip: { trigger: "axis" },
+                    xAxis: {
+                      type: "category",
+                      data: fertiliser.sales.map((row) => row.label),
+                    },
+                    yAxis: { type: "value" },
+                    series: [
+                      {
+                        type: "bar",
+                        data: fertiliser.sales.map((row) => row.value),
+                      },
+                    ],
+                  }}
+                />
+              </CardContent>
+            </Card>
+          </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Agri-Food Exports (DAFM)</CardTitle>
-            <CardDescription>Annual export value totals.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ReactECharts
-              style={{ height: 300 }}
-              option={{
-                tooltip: { trigger: "axis" },
-                xAxis: {
-                  type: "category",
-                  data: exportsByYear.map((row) => row.year),
-                },
-                yAxis: { type: "value" },
-                series: [
-                  { type: "bar", data: exportsByYear.map((row) => row.value) },
-                ],
-              }}
-            />
-          </CardContent>
-        </Card>
+          <section className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Agri-Food Exports (DAFM)</CardTitle>
+                <CardDescription>Annual export value totals.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ReactECharts
+                  {...chartDefaults}
+                  style={{ height: 300 }}
+                  option={{
+                    animation: false,
+                    tooltip: { trigger: "axis" },
+                    xAxis: {
+                      type: "category",
+                      data: exportsByYear.map((row) => row.year),
+                    },
+                    yAxis: { type: "value" },
+                    series: [
+                      {
+                        type: "bar",
+                        data: exportsByYear.map((row) => row.value),
+                      },
+                    ],
+                  }}
+                />
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Export Categories (Latest Year)</CardTitle>
-            <CardDescription>
-              Commodity breakdown by export value.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ReactECharts
-              style={{ height: 300 }}
-              option={{
-                tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-                xAxis: { type: "value" },
-                yAxis: {
-                  type: "category",
-                  data: topExportCategories.map((row) => row.category),
-                },
-                series: [
-                  {
-                    type: "bar",
-                    data: topExportCategories.map((row) => row.amountEur),
-                  },
-                ],
-              }}
-            />
-          </CardContent>
-        </Card>
-      </section>
+            <Card>
+              <CardHeader>
+                <CardTitle>Top Export Categories (Latest Year)</CardTitle>
+                <CardDescription>
+                  Commodity breakdown by export value.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ReactECharts
+                  {...chartDefaults}
+                  style={{ height: 300 }}
+                  option={{
+                    animation: false,
+                    tooltip: {
+                      trigger: "axis",
+                      axisPointer: { type: "shadow" },
+                    },
+                    xAxis: { type: "value" },
+                    yAxis: {
+                      type: "category",
+                      data: topExportCategories.map((row) => row.category),
+                    },
+                    series: [
+                      {
+                        type: "bar",
+                        data: topExportCategories.map((row) => row.amountEur),
+                      },
+                    ],
+                  }}
+                />
+              </CardContent>
+            </Card>
+          </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>CAP Payment County Comparison</CardTitle>
-          <CardDescription>
-            Top counties by CAP beneficiary payment totals.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto rounded-md border border-border">
-            <table className="min-w-full text-sm">
-              <thead className="bg-muted/50">
-                {capTable.getHeaderGroups().map((headerGroup) => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <th
-                        key={header.id}
-                        className="px-3 py-2 text-left font-medium"
-                      >
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
+          <Card>
+            <CardHeader>
+              <CardTitle>CAP Payment County Comparison</CardTitle>
+              <CardDescription>
+                Top counties by CAP beneficiary payment totals.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto rounded-md border border-border">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-muted/50">
+                    {capTable.getHeaderGroups().map((headerGroup) => (
+                      <tr key={headerGroup.id}>
+                        {headerGroup.headers.map((header) => (
+                          <th
+                            key={header.id}
+                            className="px-3 py-2 text-left font-medium"
+                          >
+                            {header.isPlaceholder
+                              ? null
+                              : flexRender(
+                                  header.column.columnDef.header,
+                                  header.getContext(),
+                                )}
+                          </th>
+                        ))}
+                      </tr>
+                    ))}
+                  </thead>
+                  <tbody>
+                    {capTable.getRowModel().rows.map((row) => (
+                      <tr key={row.id} className="border-t border-border">
+                        {row.getVisibleCells().map((cell) => (
+                          <td key={cell.id} className="px-3 py-2">
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
                             )}
-                      </th>
+                          </td>
+                        ))}
+                      </tr>
                     ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {capTable.getRowModel().rows.map((row) => (
-                  <tr key={row.id} className="border-t border-border">
-                    {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="px-3 py-2">
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading data...</p>
+      ) : null}
+      {datasetErrors.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Data Source Warnings</CardTitle>
+            <CardDescription>
+              Some feeds failed to load. Charts stay available with remaining
+              data.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+              {datasetErrors.map(([name, error]) => (
+                <li key={name}>
+                  {name}: {error.message}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
       ) : null}
     </div>
   );

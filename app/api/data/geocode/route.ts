@@ -12,6 +12,9 @@ export async function GET(request: Request) {
   url.searchParams.set("q", `${q}, Ireland`);
   url.searchParams.set("format", "jsonv2");
   url.searchParams.set("limit", "1");
+  url.searchParams.set("countrycodes", "ie");
+  url.searchParams.set("bounded", "1");
+  url.searchParams.set("viewbox", "-10.95,55.65,-5.34,51.22");
 
   const response = await fetch(url, {
     headers: {

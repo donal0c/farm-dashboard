@@ -36,6 +36,24 @@ const defaultCenter: LatLng = {
   longitude: -7.5,
 };
 
+function extractRoutingKey(value: string) {
+  const normalized = value.toUpperCase().replace(/\s+/g, "");
+  const match = normalized.match(/^(D6W|[A-Z]\d{2})/);
+  return match?.[1] ?? null;
+}
+
+function normalizeEircode(value: string) {
+  return value.toUpperCase().replace(/\s+/g, "");
+}
+
+function formatEircode(value: string) {
+  const normalized = normalizeEircode(value);
+  if (!/^(D6W|[A-Z]\d{2})[0-9A-Z]{4}$/.test(normalized)) {
+    return null;
+  }
+  return `${normalized.slice(0, 3)} ${normalized.slice(3)}`;
+}
+
 function countyFromDescription(description: string) {
   const tokens = description
     .replace(/\d+/g, "")
@@ -44,6 +62,19 @@ function countyFromDescription(description: string) {
     .filter(Boolean);
 
   return tokens[tokens.length - 1]?.toUpperCase() ?? "";
+}
+
+function distanceKm(a: LatLng, b: LatLng) {
+  const radians = Math.PI / 180;
+  const dLat = (b.latitude - a.latitude) * radians;
+  const dLng = (b.longitude - a.longitude) * radians;
+  const lat1 = a.latitude * radians;
+  const lat2 = b.latitude * radians;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+
+  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
 
 export default function MyLandPage() {
@@ -60,11 +91,19 @@ export default function MyLandPage() {
       return [];
     }
 
+    const normalized = query.replace(/\s+/g, "");
+    const routingKey = extractRoutingKey(query);
+    const terms = [query, normalized, routingKey].filter(
+      (term): term is string => Boolean(term),
+    );
+
     return (routingKeys as RoutingKey[])
-      .filter(
-        (entry) =>
-          entry.name.toUpperCase().includes(query) ||
-          entry.description.toUpperCase().includes(query),
+      .filter((entry) =>
+        terms.some(
+          (term) =>
+            entry.name.toUpperCase().includes(term) ||
+            entry.description.toUpperCase().includes(term),
+        ),
       )
       .slice(0, 8);
   }, [routingQuery]);
@@ -149,6 +188,52 @@ export default function MyLandPage() {
     setLocation(nextLocation);
   };
 
+  const geocodeQuery = async (query: string) => {
+    const geocodeResponse = await fetch(
+      `/api/data/geocode?q=${encodeURIComponent(query)}`,
+    );
+    if (!geocodeResponse.ok) {
+      return null;
+    }
+
+    return (await geocodeResponse.json()) as LatLng;
+  };
+
+  const onRoutingSubmit = async () => {
+    const routingKey = extractRoutingKey(routingQuery);
+    const match = (routingKeys as RoutingKey[]).find(
+      (entry) => entry.name.toUpperCase() === routingKey,
+    );
+
+    const formattedEircode = formatEircode(routingQuery);
+    if (formattedEircode) {
+      const exactLocation = await geocodeQuery(formattedEircode);
+      if (exactLocation) {
+        if (match) {
+          const areaLocation = await geocodeQuery(match.description);
+          const finalLocation =
+            areaLocation && distanceKm(exactLocation, areaLocation) > 75
+              ? areaLocation
+              : exactLocation;
+          setRoutingQuery(formattedEircode);
+          setSelectedRoutingKey(match);
+          setLocation(finalLocation);
+          return;
+        }
+
+        setRoutingQuery(formattedEircode);
+        setSelectedRoutingKey(null);
+        setLocation(exactLocation);
+        return;
+      }
+    }
+
+    if (!routingKey || !match) {
+      return;
+    }
+    await onRoutingSelect(match);
+  };
+
   return (
     <div className="grid gap-6">
       <section className="grid gap-4 md:grid-cols-2">
@@ -164,6 +249,11 @@ export default function MyLandPage() {
             <input
               value={routingQuery}
               onChange={(event) => setRoutingQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  void onRoutingSubmit();
+                }
+              }}
               placeholder="e.g. D15, A92, H91"
               className="h-10 rounded-md border border-input bg-background px-3 text-sm"
             />
