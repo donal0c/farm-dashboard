@@ -13,6 +13,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  ChartState,
+  DataNotice,
+  DecisionPanel,
+} from "@/components/ui/data-status";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { MET_STATIONS } from "@/lib/data/met-stations";
 
@@ -40,6 +45,21 @@ type OpwFeature = {
   geometry: {
     type: "Point";
     coordinates: [number, number];
+  };
+};
+
+type HistoricalWeatherResponse = {
+  rows: Array<{
+    date: string;
+    maxTemp: number | null;
+    minTemp: number | null;
+    rainfall: number | null;
+    soilTemp: number | null;
+    smd: number | null;
+  }>;
+  source: {
+    status: "live" | "unavailable";
+    warning?: string;
   };
 };
 
@@ -144,16 +164,7 @@ export default function WeatherWaterPage() {
         `/api/data/met/historical?stationId=${selectedHistoricalStation.historicalId}&from=${historyFrom}&to=${historyTo}`,
       );
       if (!response.ok) throw new Error("historical failed");
-      return response.json() as Promise<
-        Array<{
-          date: string;
-          maxTemp: number | null;
-          minTemp: number | null;
-          rainfall: number | null;
-          soilTemp: number | null;
-          smd: number | null;
-        }>
-      >;
+      return response.json() as Promise<HistoricalWeatherResponse>;
     },
   });
 
@@ -196,38 +207,102 @@ export default function WeatherWaterPage() {
     [opwQuery.data?.features],
   );
 
-  const historicalRows = historicalQuery.data ?? [];
+  const historicalRows = historicalQuery.data?.rows ?? [];
   const observationsRows = observationsQuery.data ?? [];
   const warningRows = warningsQuery.data ?? [];
+  const weatherDecisions = [
+    {
+      label: "Field access",
+      detail:
+        agKpis.avgRain > 20
+          ? "Recent rainfall is elevated; delay heavy machinery on vulnerable soils."
+          : "Rainfall signal is modest; check local ground conditions before field work.",
+    },
+    {
+      label: "Spraying window",
+      detail:
+        agKpis.avgWind > 10
+          ? "Wind is high enough to warrant extra caution for spray drift decisions."
+          : "Wind signal is workable nationally, but use the selected station before acting.",
+    },
+    {
+      label: "Water risk",
+      detail: selectedOpwFeature
+        ? "Monitor the selected OPW station trend before moving stock near watercourses."
+        : "Select the nearest OPW station to turn water level data into a local action.",
+    },
+  ];
 
   return (
     <div className="grid gap-6">
+      <DecisionPanel
+        title="Weather and water actions"
+        items={weatherDecisions}
+      />
+
       <section className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
         <KpiCard
           label="Avg Temperature (16 stations)"
-          value={`${agKpis.avgTemp.toFixed(1)}\u00B0C`}
+          value={
+            agReportQuery.isLoading
+              ? "Loading"
+              : agStations.length
+                ? `${agKpis.avgTemp.toFixed(1)}\u00B0C`
+                : "Unavailable"
+          }
           icon={Thermometer}
           variant="warning"
+          trend={agStations.length ? "Met ag report" : "Feed not loaded"}
         />
         <KpiCard
           label="Avg Rainfall (7-day)"
-          value={`${agKpis.avgRain.toFixed(1)} mm`}
+          value={
+            agReportQuery.isLoading
+              ? "Loading"
+              : agStations.length
+                ? `${agKpis.avgRain.toFixed(1)} mm`
+                : "Unavailable"
+          }
           icon={Droplets}
           variant="info"
+          trend={
+            agKpis.avgRain > 20 ? "Field access caution" : "National average"
+          }
         />
         <KpiCard
           label="Avg Soil Temp"
-          value={`${agKpis.avgSoil.toFixed(1)}\u00B0C`}
+          value={
+            agReportQuery.isLoading
+              ? "Loading"
+              : agStations.length
+                ? `${agKpis.avgSoil.toFixed(1)}\u00B0C`
+                : "Unavailable"
+          }
           icon={TreePine}
           variant="success"
+          trend={agStations.length ? "Seedbed context" : "Feed not loaded"}
         />
         <KpiCard
           label="Avg Wind"
-          value={`${agKpis.avgWind.toFixed(1)} kts`}
+          value={
+            agReportQuery.isLoading
+              ? "Loading"
+              : agStations.length
+                ? `${agKpis.avgWind.toFixed(1)} kts`
+                : "Unavailable"
+          }
           icon={Wind}
           variant="default"
+          trend={agKpis.avgWind > 10 ? "Spray caution" : "National average"}
         />
       </section>
+
+      {historicalQuery.data?.source.status === "unavailable" ? (
+        <DataNotice title="Historical weather feed unavailable" tone="warning">
+          The daily station feed timed out or returned an unexpected format.
+          Live observations and OPW readings remain available.
+        </DataNotice>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -284,34 +359,40 @@ export default function WeatherWaterPage() {
                 </option>
               ))}
             </select>
-            <ThemedChart
-              style={{ height: 280 }}
-              option={{
-                tooltip: { trigger: "axis" },
-                xAxis: {
-                  type: "category",
-                  data: observationsRows.map((row) => row.reportTime),
-                },
-                yAxis: [{ type: "value" }, { type: "value" }],
-                series: [
-                  {
-                    name: "Temperature",
-                    type: "line",
-                    data: observationsRows.map((row) =>
-                      Number.parseFloat(row.temperature),
-                    ),
+            <ChartState
+              isLoading={observationsQuery.isLoading}
+              isError={observationsQuery.isError}
+              isEmpty={!observationsRows.length}
+            >
+              <ThemedChart
+                style={{ height: 280 }}
+                option={{
+                  tooltip: { trigger: "axis" },
+                  xAxis: {
+                    type: "category",
+                    data: observationsRows.map((row) => row.reportTime),
                   },
-                  {
-                    name: "Rainfall",
-                    type: "bar",
-                    yAxisIndex: 1,
-                    data: observationsRows.map((row) =>
-                      Number.parseFloat(row.rainfall),
-                    ),
-                  },
-                ],
-              }}
-            />
+                  yAxis: [{ type: "value" }, { type: "value" }],
+                  series: [
+                    {
+                      name: "Temperature",
+                      type: "line",
+                      data: observationsRows.map((row) =>
+                        Number.parseFloat(row.temperature),
+                      ),
+                    },
+                    {
+                      name: "Rainfall",
+                      type: "bar",
+                      yAxisIndex: 1,
+                      data: observationsRows.map((row) =>
+                        Number.parseFloat(row.rainfall),
+                      ),
+                    },
+                  ],
+                }}
+              />
+            </ChartState>
           </CardContent>
         </Card>
 
@@ -353,36 +434,43 @@ export default function WeatherWaterPage() {
                 className="h-10 rounded-md border border-input bg-background px-3 text-sm"
               />
             </div>
-            <ThemedChart
-              style={{ height: 280 }}
-              option={{
-                tooltip: { trigger: "axis" },
-                dataZoom: [{ type: "inside" }, { type: "slider" }],
-                xAxis: {
-                  type: "category",
-                  data: historicalRows.map((row) => row.date),
-                },
-                yAxis: [{ type: "value" }, { type: "value" }],
-                series: [
-                  {
-                    name: "Max Temp",
-                    type: "line",
-                    data: historicalRows.map((row) => row.maxTemp),
+            <ChartState
+              isLoading={historicalQuery.isLoading}
+              isError={historicalQuery.isError}
+              isEmpty={!historicalRows.length}
+              emptyLabel="Historical rows are unavailable for this station or date range."
+            >
+              <ThemedChart
+                style={{ height: 280 }}
+                option={{
+                  tooltip: { trigger: "axis" },
+                  dataZoom: [{ type: "inside" }, { type: "slider" }],
+                  xAxis: {
+                    type: "category",
+                    data: historicalRows.map((row) => row.date),
                   },
-                  {
-                    name: "Rainfall",
-                    type: "bar",
-                    yAxisIndex: 1,
-                    data: historicalRows.map((row) => row.rainfall),
-                  },
-                  {
-                    name: "SMD",
-                    type: "line",
-                    data: historicalRows.map((row) => row.smd),
-                  },
-                ],
-              }}
-            />
+                  yAxis: [{ type: "value" }, { type: "value" }],
+                  series: [
+                    {
+                      name: "Max Temp",
+                      type: "line",
+                      data: historicalRows.map((row) => row.maxTemp),
+                    },
+                    {
+                      name: "Rainfall",
+                      type: "bar",
+                      yAxisIndex: 1,
+                      data: historicalRows.map((row) => row.rainfall),
+                    },
+                    {
+                      name: "SMD",
+                      type: "line",
+                      data: historicalRows.map((row) => row.smd),
+                    },
+                  ],
+                }}
+              />
+            </ChartState>
           </CardContent>
         </Card>
       </section>

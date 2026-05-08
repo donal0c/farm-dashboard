@@ -14,6 +14,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  ChartState,
+  DataNotice,
+  DecisionPanel,
+} from "@/components/ui/data-status";
 import { KpiCard } from "@/components/ui/kpi-card";
 import {
   decodeJsonStat,
@@ -34,6 +39,11 @@ type BiodiversityResponse = {
     lng: number;
     distanceKm: number;
   }>;
+  source?: {
+    status: "sample";
+    label: string;
+    warning: string;
+  };
 };
 
 function statusColorExpression(property: string) {
@@ -195,35 +205,85 @@ export default function EnvironmentCompliancePage() {
   const goodHighShare = totalWaterbodies
     ? `${Math.round((goodHighCount / totalWaterbodies) * 100)}%`
     : "0%";
+  const complianceItems = [
+    {
+      label: "Water quality",
+      detail: totalWaterbodies
+        ? `${goodHighShare} of mapped waterbodies are Good or High; inspect Moderate/Poor areas before nutrient or drainage work.`
+        : "EPA waterbody feed is empty for this point; click the map or retry before making a compliance call.",
+    },
+    {
+      label: "Nitrate pressure",
+      detail: showNitrate
+        ? "Nitrate zone overlay is active; use it as a screening layer, then confirm field-specific rules."
+        : "Turn on the nitrate overlay before checking spreading or stocking implications.",
+    },
+    {
+      label: "Habitat context",
+      detail:
+        "Biodiversity results are sample-backed, so treat them as a prompt for survey questions rather than evidence.",
+    },
+  ];
 
   return (
     <div className="grid gap-6">
+      <DecisionPanel title="Compliance watch points" items={complianceItems} />
+
       <section className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
         <KpiCard
           label="Waterbodies in view"
-          value={totalWaterbodies}
+          value={
+            wfdQuery.isLoading ? "Loading" : totalWaterbodies || "Unavailable"
+          }
           icon={Droplets}
           variant="info"
+          trend={
+            totalWaterbodies ? "EPA WFD response" : "Click map or retry feed"
+          }
         />
         <KpiCard
           label="Good/High status share"
-          value={goodHighShare}
+          value={
+            wfdQuery.isLoading
+              ? "Loading"
+              : totalWaterbodies
+                ? goodHighShare
+                : "Unavailable"
+          }
           icon={Fish}
           variant="success"
+          trend={totalWaterbodies ? "Local catchment status" : "No status rows"}
         />
         <KpiCard
-          label="Biodiversity records (60km)"
-          value={biodiversityQuery.data?.totalRecords ?? 0}
+          label="Sample biodiversity records"
+          value={
+            biodiversityQuery.isLoading
+              ? "Loading"
+              : (biodiversityQuery.data?.totalRecords ?? "Unavailable")
+          }
           icon={Leaf}
           variant="default"
+          trend="Prototype data, not live NBDC"
         />
         <KpiCard
           label="Protected species records"
-          value={biodiversityQuery.data?.protectedCount ?? 0}
+          value={
+            biodiversityQuery.isLoading
+              ? "Loading"
+              : (biodiversityQuery.data?.protectedCount ?? "Unavailable")
+          }
           icon={Shield}
           variant="warning"
+          trend="Use as survey prompt only"
         />
       </section>
+
+      {biodiversityQuery.data?.source?.status === "sample" ? (
+        <DataNotice title="Biodiversity data is sample-backed" tone="warning">
+          This surface is labelled as a prototype workflow. It should guide what
+          to investigate next, not be used as a live NBDC compliance record.
+        </DataNotice>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -425,20 +485,29 @@ export default function EnvironmentCompliancePage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ThemedChart
-              style={{ height: 300 }}
-              option={{
-                tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-                xAxis: {
-                  type: "category",
-                  data: statusCounts.map((item) => item.status),
-                },
-                yAxis: { type: "value" },
-                series: [
-                  { type: "bar", data: statusCounts.map((item) => item.count) },
-                ],
-              }}
-            />
+            <ChartState
+              isLoading={wfdQuery.isLoading}
+              isError={wfdQuery.isError}
+              isEmpty={!statusCounts.length}
+            >
+              <ThemedChart
+                style={{ height: 300 }}
+                option={{
+                  tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+                  xAxis: {
+                    type: "category",
+                    data: statusCounts.map((item) => item.status),
+                  },
+                  yAxis: { type: "value" },
+                  series: [
+                    {
+                      type: "bar",
+                      data: statusCounts.map((item) => item.count),
+                    },
+                  ],
+                }}
+              />
+            </ChartState>
           </CardContent>
         </Card>
 
@@ -446,7 +515,8 @@ export default function EnvironmentCompliancePage() {
           <CardHeader>
             <CardTitle>Biodiversity Search by Area</CardTitle>
             <CardDescription>
-              NBDC-style records filtered by proximity to selected map location.
+              Prototype sample records filtered by proximity to selected map
+              location.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 text-sm">

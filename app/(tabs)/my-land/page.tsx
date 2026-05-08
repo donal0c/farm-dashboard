@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { DataNotice, DecisionPanel } from "@/components/ui/data-status";
 import routingKeys from "@/lib/data/eircode-routing-keys.json";
 
 type LatLng = { latitude: number; longitude: number };
@@ -82,7 +83,7 @@ export default function MyLandPage() {
   const [selectedRoutingKey, setSelectedRoutingKey] =
     useState<RoutingKey | null>(null);
   const [location, setLocation] = useState<LatLng>(defaultCenter);
-  const [showSoilLayer, setShowSoilLayer] = useState(true);
+  const [showSoilLayer, setShowSoilLayer] = useState(false);
   const [showNitrateLayer, setShowNitrateLayer] = useState(true);
 
   const suggestions = useMemo(() => {
@@ -172,6 +173,27 @@ export default function MyLandPage() {
       };
     })
     .slice(0, 5);
+  const parcelCount = lpisQuery.data?.features.length ?? 0;
+  const landDecisionItems = [
+    {
+      label: "Locate first",
+      detail: selectedRoutingKey
+        ? `${selectedRoutingKey.name} is selected; CAP and nearby parcel context can now be read together.`
+        : "Search a routing key or click the map before treating parcel and CAP signals as local.",
+    },
+    {
+      label: "Parcel screen",
+      detail: parcelCount
+        ? `${parcelCount} LPIS features returned nearby; inspect crop mix before using the area trend.`
+        : "No nearby LPIS features yet; move the map point or try a routing key for farm context.",
+    },
+    {
+      label: "Overlay choice",
+      detail: showSoilLayer
+        ? "Soil overlay is on. If the basemap becomes hard to read, switch it off and keep nitrates visible."
+        : "Soil overlay starts off so the map remains readable; turn it on only for a soil-specific check.",
+    },
+  ];
 
   const onRoutingSelect = async (entry: RoutingKey) => {
     setSelectedRoutingKey(entry);
@@ -236,6 +258,8 @@ export default function MyLandPage() {
 
   return (
     <div className="grid gap-6">
+      <DecisionPanel title="Land decision brief" items={landDecisionItems} />
+
       <section className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -289,6 +313,11 @@ export default function MyLandPage() {
                 Nitrate Overlay
               </Button>
             </div>
+            <DataNotice title="Map readability" tone="info">
+              Soil WMS is optional and starts off because the overlay can
+              obscure base-map detail. Keep nitrates on for a clearer compliance
+              screen.
+            </DataNotice>
           </CardContent>
         </Card>
 
@@ -302,7 +331,16 @@ export default function MyLandPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {capSummaryQuery.data ? (
+            {capSummaryQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">
+                Loading county CAP summary...
+              </p>
+            ) : capSummaryQuery.isError ? (
+              <DataNotice title="CAP summary unavailable" tone="warning">
+                County CAP data did not load. Parcel and map context remain
+                available.
+              </DataNotice>
+            ) : capSummaryQuery.data ? (
               <div className="grid gap-2 text-sm">
                 <p>
                   Beneficiaries:{" "}

@@ -17,19 +17,40 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  ChartState,
+  DataNotice,
+  DecisionPanel,
+} from "@/components/ui/data-status";
 import { KpiCard } from "@/components/ui/kpi-card";
 import {
   decodeJsonStat,
   type JsonStatDataset,
-  type JsonStatRow,
   parseYear,
 } from "@/lib/cso/jsonstat";
+import {
+  clamp,
+  collectYears,
+  latestValue,
+  sumByPeriodLabel,
+  sumByYear,
+} from "@/lib/data/market-series";
 
 type ExportRow = {
   category: string;
   year: number;
   amountEur: number;
   quantityTonnes: number;
+};
+
+type ExportResponse = {
+  rows: ExportRow[];
+  source: {
+    status: "live" | "fallback";
+    label: string;
+    updated: string;
+    warning?: string;
+  };
 };
 
 type CountyAggregate = {
@@ -70,89 +91,6 @@ function safeDecode(dataset?: JsonStatDataset | null) {
   } catch {
     return [];
   }
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
-}
-
-function collectYears(rows: JsonStatRow[], timeDimension: string) {
-  return Array.from(
-    new Set(
-      rows
-        .map((row) => parseYear(String(row[timeDimension])))
-        .filter((year) => Number.isFinite(year)),
-    ),
-  ).sort((a, b) => a - b);
-}
-
-function sumByYear(
-  rows: JsonStatRow[],
-  timeDimension: string,
-  filters: Record<string, string>,
-  fromYear: number,
-  toYear: number,
-) {
-  const totals = new Map<number, number>();
-
-  for (const row of rows) {
-    const matches = Object.entries(filters).every(
-      ([dim, code]) => row[dim] === code,
-    );
-    if (!matches) {
-      continue;
-    }
-
-    const year = parseYear(String(row[timeDimension]));
-    if (!Number.isFinite(year) || year < fromYear || year > toYear) {
-      continue;
-    }
-
-    totals.set(year, (totals.get(year) ?? 0) + Number(row.value));
-  }
-
-  return Array.from(totals.entries())
-    .sort((a, b) => a[0] - b[0])
-    .map(([year, value]) => ({ year, value }));
-}
-
-function sumByPeriodLabel(
-  rows: JsonStatRow[],
-  timeDimension: string,
-  filters: Record<string, string>,
-  fromYear: number,
-  toYear: number,
-) {
-  const totals = new Map<string, number>();
-
-  for (const row of rows) {
-    const matches = Object.entries(filters).every(
-      ([dim, code]) => row[dim] === code,
-    );
-    if (!matches) {
-      continue;
-    }
-
-    const year = parseYear(String(row[timeDimension]));
-    if (!Number.isFinite(year) || year < fromYear || year > toYear) {
-      continue;
-    }
-
-    const label = String(row[`${timeDimension}_label`]);
-    totals.set(label, (totals.get(label) ?? 0) + Number(row.value));
-  }
-
-  return Array.from(totals.entries()).map(([label, value]) => ({
-    label,
-    value,
-  }));
-}
-
-function latestValue(rows: Array<{ year: number; value: number }>) {
-  if (!rows.length) {
-    return 0;
-  }
-  return rows[rows.length - 1].value;
 }
 
 export default function MarketsIncomePage() {
@@ -204,7 +142,7 @@ export default function MarketsIncomePage() {
       if (!response.ok) {
         throw new Error("Failed to load exports");
       }
-      return (await response.json()) as ExportRow[];
+      return (await response.json()) as ExportResponse;
     },
     ...queryDefaults,
   });
@@ -621,26 +559,28 @@ export default function MarketsIncomePage() {
 
   const exportsByYear = useMemo(() => {
     const totals = new Map<number, number>();
-    for (const row of exportsQuery.data ?? []) {
+    for (const row of exportsQuery.data?.rows ?? []) {
       totals.set(row.year, (totals.get(row.year) ?? 0) + row.amountEur);
     }
 
     return Array.from(totals.entries())
       .sort((a, b) => a[0] - b[0])
       .map(([year, value]) => ({ year, value }));
-  }, [exportsQuery.data]);
+  }, [exportsQuery.data?.rows]);
 
   const topExportCategories = useMemo(() => {
-    if (!exportsQuery.data?.length) {
+    if (!exportsQuery.data?.rows.length) {
       return [];
     }
 
-    const latestYear = Math.max(...exportsQuery.data.map((row) => row.year));
-    return exportsQuery.data
+    const latestYear = Math.max(
+      ...exportsQuery.data.rows.map((row) => row.year),
+    );
+    return exportsQuery.data.rows
       .filter((row) => row.year === latestYear)
       .sort((a, b) => b.amountEur - a.amountEur)
       .slice(0, 8);
-  }, [exportsQuery.data]);
+  }, [exportsQuery.data?.rows]);
 
   const capColumns = useMemo<ColumnDef<CountyAggregate>[]>(
     () => [
@@ -680,6 +620,7 @@ export default function MarketsIncomePage() {
   const kpiMilkIndex = pricesSeries.milk.length
     ? pricesSeries.milk[pricesSeries.milk.length - 1]
     : 0;
+  const latestExportYear = exportsByYear.at(-1)?.year;
 
   const loading =
     aea01.isLoading ||
@@ -702,9 +643,32 @@ export default function MarketsIncomePage() {
     ["exports", exportsQuery.error],
     ["cap-counties", capCountyQuery.error],
   ].filter((entry): entry is [string, Error] => entry[1] instanceof Error);
+  const marketsReady = !loading && !datasetErrors.length;
+  const decisionItems = [
+    {
+      label: "Income watch",
+      detail: kpiTotalOutput
+        ? "Compare your farm type against the output trend before changing stocking or crop plans."
+        : "Economic feeds are still loading or unavailable; avoid treating current KPIs as a signal.",
+    },
+    {
+      label: "Export demand",
+      detail: latestExportYear
+        ? `Use ${latestExportYear} export category strength to sanity-check enterprise assumptions.`
+        : "Export feed unavailable; use local sale prices until the DAFM feed recovers.",
+    },
+    {
+      label: "Input pressure",
+      detail: fertiliser.labels.length
+        ? "Review fertiliser price direction before locking nutrient purchases for the season."
+        : "Load extended analytics when fertiliser timing is the decision at hand.",
+    },
+  ];
 
   return (
     <div className="grid gap-6">
+      <DecisionPanel title="Markets decision brief" items={decisionItems} />
+
       <Card>
         <CardHeader>
           <CardTitle>Filters</CardTitle>
@@ -771,23 +735,69 @@ export default function MarketsIncomePage() {
       <section className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
         <KpiCard
           label="Total agricultural output (latest in range)"
-          value={currency.format(kpiTotalOutput)}
+          value={
+            loading
+              ? "Loading"
+              : kpiTotalOutput
+                ? currency.format(kpiTotalOutput)
+                : "Unavailable"
+          }
           icon={Banknote}
           variant="success"
+          trend={
+            marketsReady ? "CSO feed loaded" : "Do not use as a zero value"
+          }
         />
         <KpiCard
           label="Agri-food exports (latest year)"
-          value={currency.format(kpiExports)}
+          value={
+            exportsQuery.isLoading
+              ? "Loading"
+              : kpiExports
+                ? currency.format(kpiExports)
+                : "Unavailable"
+          }
           icon={Ship}
-          variant="info"
+          variant={
+            exportsQuery.data?.source.status === "fallback" ? "warning" : "info"
+          }
+          trend={
+            exportsQuery.data?.source.status === "fallback"
+              ? "Fallback extract"
+              : latestExportYear
+                ? `${latestExportYear} DAFM data`
+                : "Awaiting feed"
+          }
         />
         <KpiCard
           label="Milk price index (latest month)"
-          value={kpiMilkIndex.toFixed(2)}
+          value={
+            loading
+              ? "Loading"
+              : kpiMilkIndex
+                ? kpiMilkIndex.toFixed(2)
+                : "Unavailable"
+          }
           icon={Milk}
           variant="default"
+          trend={
+            kpiMilkIndex
+              ? "Latest month in selected range"
+              : "No monthly price rows"
+          }
         />
       </section>
+
+      {exportsQuery.data?.source.status === "fallback" ? (
+        <DataNotice
+          title="DAFM exports are running on a fallback extract"
+          tone="warning"
+        >
+          The live export CSV could not be fetched. Values are shown from a
+          bundled 2026 extract so the workflow remains usable without implying
+          that the feed is current.
+        </DataNotice>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -797,22 +807,28 @@ export default function MarketsIncomePage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ThemedChart
-            style={{ height: 360 }}
-            option={{
-              tooltip: { trigger: "axis" },
-              legend: { data: ["Cattle", "Milk", "Sheep", "Crops"] },
-              xAxis: { type: "category", data: outputSeries.years },
-              yAxis: { type: "value" },
-              dataZoom: [{ type: "inside" }, { type: "slider" }],
-              series: [
-                { name: "Cattle", type: "line", data: outputSeries.cattle },
-                { name: "Milk", type: "line", data: outputSeries.milk },
-                { name: "Sheep", type: "line", data: outputSeries.sheep },
-                { name: "Crops", type: "line", data: outputSeries.crops },
-              ],
-            }}
-          />
+          <ChartState
+            isLoading={aea01.isLoading}
+            isError={aea01.isError}
+            isEmpty={!outputSeries.years.length}
+          >
+            <ThemedChart
+              style={{ height: 360 }}
+              option={{
+                tooltip: { trigger: "axis" },
+                legend: { data: ["Cattle", "Milk", "Sheep", "Crops"] },
+                xAxis: { type: "category", data: outputSeries.years },
+                yAxis: { type: "value" },
+                dataZoom: [{ type: "inside" }, { type: "slider" }],
+                series: [
+                  { name: "Cattle", type: "line", data: outputSeries.cattle },
+                  { name: "Milk", type: "line", data: outputSeries.milk },
+                  { name: "Sheep", type: "line", data: outputSeries.sheep },
+                  { name: "Crops", type: "line", data: outputSeries.crops },
+                ],
+              }}
+            />
+          </ChartState>
         </CardContent>
       </Card>
 

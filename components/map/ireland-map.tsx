@@ -66,7 +66,7 @@ export function IrelandMap({
             <Layer
               id="soil-wms-layer"
               type="raster"
-              paint={{ "raster-opacity": 0.45 }}
+              paint={{ "raster-opacity": 0.28 }}
             />
           </Source>
         ) : null}

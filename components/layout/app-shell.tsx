@@ -92,7 +92,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
     >
       <Sidebar>
-        <SidebarHeader>
+        <SidebarHeader className="p-3 md:p-4">
           <div className="flex items-center gap-3">
             <BrandMark />
             <div>
@@ -105,11 +105,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </SidebarHeader>
-        <SidebarContent>
-          <p className="mb-2 px-3 text-[10px] font-medium uppercase tracking-widest text-sidebar-foreground/40">
+        <SidebarContent className="p-2 md:p-3">
+          <p className="mb-2 hidden px-3 text-[10px] font-medium uppercase text-sidebar-foreground/40 md:block">
             Dashboard
           </p>
-          <nav className="grid gap-1">
+          <nav className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] md:grid md:gap-1 md:overflow-visible md:pb-0 [&::-webkit-scrollbar]:hidden">
             {tabs.map((tab) => {
               const active = pathname === tab.href;
               const Icon = tab.icon;
@@ -119,7 +119,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   href={tab.href}
                   onClick={() => setActiveTab(tab.key)}
                   className={cn(
-                    "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                    "group flex min-w-max items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors md:gap-3 md:py-2.5",
                     active
                       ? "border-l-2 border-sidebar-primary bg-sidebar-accent text-sidebar-primary-foreground"
                       : "border-l-2 border-transparent text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-primary-foreground",
@@ -139,7 +139,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
         </SidebarContent>
-        <SidebarFooter>
+        <SidebarFooter className="hidden md:block">
           <ThemeToggle />
           <p className="mt-2 text-center text-[10px] text-sidebar-foreground/30">
             v0.1.0
