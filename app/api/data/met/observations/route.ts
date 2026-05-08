@@ -8,6 +8,8 @@ export async function GET(request: Request) {
     `https://prodapi.metweb.ie/observations/${station}/today`,
     {
       cache: "no-store",
+      headers: { "User-Agent": "farm-dashboard/0.1" },
+      signal: AbortSignal.timeout(4500),
     },
   );
 

@@ -42,7 +42,7 @@ export function KpiCard({
   return (
     <div
       className={cn(
-        "flex items-start gap-4 rounded-xl border border-l-[3px] bg-card p-4 shadow-sm transition-shadow hover:shadow-md",
+        "flex items-start gap-3 rounded-xl border border-l-[3px] bg-card p-4 shadow-sm transition-shadow hover:shadow-md",
         borderClasses[variant],
         className,
       )}
@@ -55,15 +55,17 @@ export function KpiCard({
       >
         <Icon className="h-5 w-5" />
       </div>
-      <div className="min-w-0">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <p className="mt-0.5 text-2xl font-bold tabular-nums tracking-tight text-card-foreground">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium leading-4 text-muted-foreground">
+          {label}
+        </p>
+        <p className="mt-1 break-words text-xl font-bold tabular-nums tracking-tight text-card-foreground lg:text-2xl">
           {value}
         </p>
         {trend ? (
           <p
             className={cn(
-              "mt-1 text-xs font-medium",
+              "mt-1 text-xs font-medium leading-4",
               trendUp === true && "text-success",
               trendUp === false && "text-destructive",
               trendUp === undefined && "text-muted-foreground",

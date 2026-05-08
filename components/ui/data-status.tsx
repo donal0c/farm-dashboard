@@ -53,9 +53,11 @@ export function DataNotice({
 export function DecisionPanel({
   title = "What to do next",
   items,
+  compact = false,
 }: {
   title?: string;
   items: Array<{ label: string; detail: string; tone?: NoticeTone }>;
+  compact?: boolean;
 }) {
   return (
     <section className="rounded-xl border border-border bg-card p-4 text-card-foreground shadow-sm">
@@ -65,7 +67,12 @@ export function DecisionPanel({
           decision support
         </span>
       </div>
-      <div className="grid gap-3 md:grid-cols-3">
+      <div
+        className={cn(
+          "grid gap-3",
+          compact ? "md:grid-cols-2" : "md:grid-cols-3",
+        )}
+      >
         {items.map((item) => (
           <div
             key={item.label}
@@ -89,6 +96,7 @@ export function ChartState({
   errorLabel = "Feed unavailable",
   emptyLabel = "No data returned for this selection.",
   loadingLabel = "Loading feed...",
+  minHeightClassName = "min-h-64",
   children,
 }: {
   isLoading?: boolean;
@@ -97,11 +105,17 @@ export function ChartState({
   errorLabel?: string;
   emptyLabel?: string;
   loadingLabel?: string;
+  minHeightClassName?: string;
   children: React.ReactNode;
 }) {
   if (isLoading) {
     return (
-      <div className="flex min-h-64 items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 text-sm text-muted-foreground">
+      <div
+        className={cn(
+          "flex items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 px-4 text-center text-sm text-muted-foreground",
+          minHeightClassName,
+        )}
+      >
         {loadingLabel}
       </div>
     );
@@ -109,7 +123,12 @@ export function ChartState({
 
   if (isError) {
     return (
-      <div className="flex min-h-64 items-center justify-center rounded-lg border border-dashed border-destructive/40 bg-destructive/10 px-4 text-center text-sm text-muted-foreground">
+      <div
+        className={cn(
+          "flex items-center justify-center rounded-lg border border-dashed border-destructive/40 bg-destructive/10 px-4 text-center text-sm text-muted-foreground",
+          minHeightClassName,
+        )}
+      >
         {errorLabel}
       </div>
     );
@@ -117,7 +136,12 @@ export function ChartState({
 
   if (isEmpty) {
     return (
-      <div className="flex min-h-64 items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 px-4 text-center text-sm text-muted-foreground">
+      <div
+        className={cn(
+          "flex items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 px-4 text-center text-sm text-muted-foreground",
+          minHeightClassName,
+        )}
+      >
         {emptyLabel}
       </div>
     );

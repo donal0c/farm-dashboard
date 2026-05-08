@@ -25,6 +25,8 @@ import {
   type JsonStatDataset,
   parseYear,
 } from "@/lib/cso/jsonstat";
+import { complianceActionForEnterprise } from "@/lib/farm-plan";
+import { useUiStore } from "@/lib/store/ui-store";
 
 type LatLng = { latitude: number; longitude: number };
 
@@ -75,6 +77,8 @@ export default function EnvironmentCompliancePage() {
   const [showAgPressure, setShowAgPressure] = useState(false);
   const [showCorine, setShowCorine] = useState(false);
   const [showCorineChange, setShowCorineChange] = useState(false);
+  const enterprise = useUiStore((state) => state.enterprise);
+  const weekFocus = useUiStore((state) => state.weekFocus);
 
   const wfdQuery = useQuery({
     queryKey: ["wfd-status", location.latitude, location.longitude],
@@ -220,8 +224,13 @@ export default function EnvironmentCompliancePage() {
     },
     {
       label: "Habitat context",
-      detail:
-        "Biodiversity results are sample-backed, so treat them as a prompt for survey questions rather than evidence.",
+      detail: complianceActionForEnterprise(enterprise, weekFocus, {
+        goodHighShare: totalWaterbodies
+          ? Math.round((goodHighCount / totalWaterbodies) * 100)
+          : null,
+        biodiversityIsSample:
+          biodiversityQuery.data?.source?.status === "sample",
+      }),
     },
   ];
 

@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { AreaChart } from "@tremor/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SampleYieldChart } from "@/components/charts/sample-yield-chart";
 import { IrelandMap } from "@/components/map/ireland-map";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card";
 import { DataNotice, DecisionPanel } from "@/components/ui/data-status";
 import routingKeys from "@/lib/data/eircode-routing-keys.json";
+import { useUiStore } from "@/lib/store/ui-store";
 
 type LatLng = { latitude: number; longitude: number };
 
@@ -85,6 +86,9 @@ export default function MyLandPage() {
   const [location, setLocation] = useState<LatLng>(defaultCenter);
   const [showSoilLayer, setShowSoilLayer] = useState(false);
   const [showNitrateLayer, setShowNitrateLayer] = useState(true);
+  const enterprise = useUiStore((state) => state.enterprise);
+  const weekFocus = useUiStore((state) => state.weekFocus);
+  const setFarmCounty = useUiStore((state) => state.setFarmCounty);
 
   const suggestions = useMemo(() => {
     const query = routingQuery.trim().toUpperCase();
@@ -139,6 +143,10 @@ export default function MyLandPage() {
     ? countyFromDescription(selectedRoutingKey.description)
     : null;
 
+  useEffect(() => {
+    setFarmCounty(county);
+  }, [county, setFarmCounty]);
+
   const capSummaryQuery = useQuery({
     queryKey: ["cap-summary", county],
     queryFn: async () => {
@@ -178,13 +186,13 @@ export default function MyLandPage() {
     {
       label: "Locate first",
       detail: selectedRoutingKey
-        ? `${selectedRoutingKey.name} is selected; CAP and nearby parcel context can now be read together.`
-        : "Search a routing key or click the map before treating parcel and CAP signals as local.",
+        ? `${selectedRoutingKey.name} is selected for a ${enterprise} farm; CAP and nearby parcel context can now be read together.`
+        : `Set a routing key before using ${weekFocus} advice as local.`,
     },
     {
       label: "Parcel screen",
       detail: parcelCount
-        ? `${parcelCount} LPIS features returned nearby; inspect crop mix before using the area trend.`
+        ? `${parcelCount} LPIS features returned nearby; inspect crop mix before planning ${weekFocus} work.`
         : "No nearby LPIS features yet; move the map point or try a routing key for farm context.",
     },
     {

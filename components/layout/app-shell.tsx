@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { ChatSidebar } from "@/components/genui/chat-sidebar";
+import { FarmProfileBar } from "@/components/layout/farm-profile-bar";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import {
   Sidebar,
@@ -146,7 +147,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </p>
         </SidebarFooter>
       </Sidebar>
-      <main className="overflow-y-auto p-4 md:h-screen md:p-6">{children}</main>
+      <main className="overflow-y-auto p-4 md:h-screen md:p-6">
+        <FarmProfileBar />
+        {children}
+      </main>
       {genUiEnabled ? (
         <div className="hidden md:block">
           <ChatSidebar />

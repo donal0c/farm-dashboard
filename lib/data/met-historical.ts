@@ -95,7 +95,7 @@ export async function loadHistoricalWeather(
       {
         cache: "no-store",
         headers: { "User-Agent": "farm-dashboard/0.1" },
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(4500),
       },
     );
 

@@ -35,6 +35,8 @@ import {
   sumByPeriodLabel,
   sumByYear,
 } from "@/lib/data/market-series";
+import { enterpriseMarketSignal } from "@/lib/farm-plan";
+import { useUiStore } from "@/lib/store/ui-store";
 
 type ExportRow = {
   category: string;
@@ -204,6 +206,8 @@ export default function MarketsIncomePage() {
   const [showExtendedCharts, setShowExtendedCharts] = useState(false);
   const [draftFromYear, setDraftFromYear] = useState(String(fromYear));
   const [draftToYear, setDraftToYear] = useState(String(toYear));
+  const enterprise = useUiStore((state) => state.enterprise);
+  const weekFocus = useUiStore((state) => state.weekFocus);
   const effectiveToYear = Number.isFinite(toYear)
     ? clamp(toYear, minYear, maxYear)
     : maxYear;
@@ -648,7 +652,7 @@ export default function MarketsIncomePage() {
     {
       label: "Income watch",
       detail: kpiTotalOutput
-        ? "Compare your farm type against the output trend before changing stocking or crop plans."
+        ? enterpriseMarketSignal(enterprise)
         : "Economic feeds are still loading or unavailable; avoid treating current KPIs as a signal.",
     },
     {
@@ -659,9 +663,10 @@ export default function MarketsIncomePage() {
     },
     {
       label: "Input pressure",
-      detail: fertiliser.labels.length
-        ? "Review fertiliser price direction before locking nutrient purchases for the season."
-        : "Load extended analytics when fertiliser timing is the decision at hand.",
+      detail:
+        weekFocus === "nutrients" || fertiliser.labels.length
+          ? "Review fertiliser price direction before locking nutrient purchases for the season."
+          : "Load extended analytics when input timing is the decision at hand.",
     },
   ];
 

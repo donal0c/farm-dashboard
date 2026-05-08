@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/data-status";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { MET_STATIONS } from "@/lib/data/met-stations";
+import { weatherActionForEnterprise } from "@/lib/farm-plan";
+import { useUiStore } from "@/lib/store/ui-store";
 
 type AgStation = {
   "@name": string;
@@ -79,6 +81,8 @@ export default function WeatherWaterPage() {
   const [historyTo, setHistoryTo] = useState("2025-12-31");
   const [selectedOpwFeature, setSelectedOpwFeature] =
     useState<OpwFeature | null>(null);
+  const enterprise = useUiStore((state) => state.enterprise);
+  const weekFocus = useUiStore((state) => state.weekFocus);
 
   const agReportQuery = useQuery({
     queryKey: ["met", "ag-report"],
@@ -219,11 +223,12 @@ export default function WeatherWaterPage() {
           : "Rainfall signal is modest; check local ground conditions before field work.",
     },
     {
-      label: "Spraying window",
-      detail:
-        agKpis.avgWind > 10
-          ? "Wind is high enough to warrant extra caution for spray drift decisions."
-          : "Wind signal is workable nationally, but use the selected station before acting.",
+      label: "This week's action",
+      detail: weatherActionForEnterprise(enterprise, weekFocus, {
+        rainMm: agKpis.avgRain,
+        windKts: agKpis.avgWind,
+        soilTemp: agKpis.avgSoil,
+      }),
     },
     {
       label: "Water risk",
@@ -363,6 +368,9 @@ export default function WeatherWaterPage() {
               isLoading={observationsQuery.isLoading}
               isError={observationsQuery.isError}
               isEmpty={!observationsRows.length}
+              emptyLabel={`No live rows returned for ${selectedObservationStation.name}; choose a nearby station or use the ag-report KPIs above.`}
+              loadingLabel="Checking today's station observations..."
+              minHeightClassName="min-h-56"
             >
               <ThemedChart
                 style={{ height: 280 }}
@@ -439,6 +447,8 @@ export default function WeatherWaterPage() {
               isError={historicalQuery.isError}
               isEmpty={!historicalRows.length}
               emptyLabel="Historical rows are unavailable for this station or date range."
+              loadingLabel="Checking station history; this feed fails fast if Met Eireann is slow."
+              minHeightClassName="min-h-56"
             >
               <ThemedChart
                 style={{ height: 280 }}
