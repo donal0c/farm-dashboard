@@ -1,63 +1,51 @@
 import { NextResponse } from "next/server";
 
-type CapRow = {
-  co?: string;
-  z?: number;
+import { unavailableSnapshot } from "@/lib/contracts/source-snapshot";
+import {
+  type CapCountyAggregate,
+  getCapCountySnapshot,
+} from "@/lib/sources/cap";
+
+const source = {
+  id: "dafm-cap-beneficiaries-2025",
+  label: "DAFM CAP beneficiaries 2025",
+  url: "https://capben-ui.apps.services.agriculture.gov.ie/assets/capben/2025.json",
 };
 
-let capRowsCache: CapRow[] | null = null;
-
-async function getCapRows() {
-  if (capRowsCache) {
-    return capRowsCache;
-  }
-
-  const response = await fetch(
-    "https://capben-ui.apps.services.agriculture.gov.ie/assets/capben/2024.json",
-    {
-      cache: "no-store",
-    },
-  );
-
-  if (!response.ok) {
-    return null;
-  }
-
-  capRowsCache = (await response.json()) as CapRow[];
-  return capRowsCache;
-}
-
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const county = (searchParams.get("county") ?? "").toUpperCase();
-
+  const county = new URL(request.url).searchParams
+    .get("county")
+    ?.trim()
+    .toUpperCase();
   if (!county) {
     return NextResponse.json({ error: "county is required" }, { status: 400 });
   }
 
-  const rows = await getCapRows();
-  if (!rows) {
+  try {
+    const snapshot = await getCapCountySnapshot();
+    const aggregate =
+      snapshot.data?.find((item) => item.county === county) ?? null;
+    return NextResponse.json({
+      ...snapshot,
+      data: aggregate,
+      scope: "county",
+      warning: aggregate
+        ? snapshot.warning
+        : `No ${county} aggregate was present in the ${source.label} release.`,
+    });
+  } catch (error) {
     return NextResponse.json(
-      { error: "CAP dataset unavailable" },
+      unavailableSnapshot<CapCountyAggregate>({
+        source,
+        scope: "county",
+        staleAfter: new Date().toISOString(),
+        warning:
+          error instanceof Error
+            ? error.message
+            : "DAFM CAP is temporarily unavailable.",
+        confidence: "authoritative",
+      }),
       { status: 502 },
     );
   }
-
-  let beneficiaryCount = 0;
-  let totalPayment = 0;
-
-  for (const row of rows) {
-    if ((row.co ?? "").toUpperCase() !== county) {
-      continue;
-    }
-
-    beneficiaryCount += 1;
-    totalPayment += row.z ?? 0;
-  }
-
-  return NextResponse.json({
-    county,
-    beneficiaryCount,
-    totalPayment,
-  });
 }

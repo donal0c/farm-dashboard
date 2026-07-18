@@ -2,7 +2,15 @@
   "$schema": "https://biomejs.dev/schemas/2.3.14/schema.json",
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!.beads", "!output", "!.next", "!node_modules"]
+    "includes": [
+      "**",
+      "!.beads",
+      "!output",
+      "!.next",
+      "!node_modules",
+      "!.vercel",
+      "!tmp"
+    ]
   },
   "css": {
     "parser": {

@@ -19,8 +19,10 @@ import {
   DecisionPanel,
 } from "@/components/ui/data-status";
 import { KpiCard } from "@/components/ui/kpi-card";
+import type { SourceSnapshot } from "@/lib/contracts/source-snapshot";
 import { MET_STATIONS } from "@/lib/data/met-stations";
 import { weatherActionForEnterprise } from "@/lib/farm-plan";
+import type { MetWarning } from "@/lib/sources/met-warnings";
 import { useUiStore } from "@/lib/store/ui-store";
 
 type AgStation = {
@@ -118,7 +120,7 @@ export default function WeatherWaterPage() {
     queryFn: async () => {
       const response = await fetch("/api/data/met/warnings");
       if (!response.ok) throw new Error("warnings failed");
-      return response.json() as Promise<Array<Record<string, unknown>>>;
+      return response.json() as Promise<SourceSnapshot<MetWarning[]>>;
     },
     refetchInterval: 15 * 60 * 1000,
   });
@@ -213,7 +215,7 @@ export default function WeatherWaterPage() {
 
   const historicalRows = historicalQuery.data?.rows ?? [];
   const observationsRows = observationsQuery.data ?? [];
-  const warningRows = warningsQuery.data ?? [];
+  const warningRows = warningsQuery.data?.data ?? [];
   const weatherDecisions = [
     {
       label: "Field access",
@@ -322,12 +324,20 @@ export default function WeatherWaterPage() {
             <div className="grid gap-2">
               {warningRows.slice(0, 8).map((warning) => (
                 <div
-                  key={JSON.stringify(warning)}
-                  className="rounded-md border border-border bg-amber-100/40 p-3 text-sm"
+                  key={warning.id}
+                  className="border-l-2 border-warning bg-warning/10 p-4 text-sm"
                 >
-                  <pre className="whitespace-pre-wrap">
-                    {JSON.stringify(warning, null, 2)}
-                  </pre>
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-warning">
+                    {warning.level} · until{" "}
+                    {new Intl.DateTimeFormat("en-IE", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    }).format(new Date(warning.expiresAt))}
+                  </p>
+                  <p className="mt-2 font-semibold">{warning.headline}</p>
+                  <p className="mt-2 leading-6 text-muted-foreground">
+                    {warning.description}
+                  </p>
                 </div>
               ))}
             </div>

@@ -23,6 +23,7 @@ import {
   DecisionPanel,
 } from "@/components/ui/data-status";
 import { KpiCard } from "@/components/ui/kpi-card";
+import type { SourceSnapshot } from "@/lib/contracts/source-snapshot";
 import {
   decodeJsonStat,
   type JsonStatDataset,
@@ -67,6 +68,12 @@ const currency = new Intl.NumberFormat("en-IE", {
   maximumFractionDigits: 0,
 });
 
+function formatEuroMillions(value: number) {
+  return `€${new Intl.NumberFormat("en-IE", {
+    maximumFractionDigits: 1,
+  }).format(value)}m`;
+}
+
 const queryDefaults = {
   staleTime: 30 * 60 * 1000,
   gcTime: 60 * 60 * 1000,
@@ -96,6 +103,7 @@ function safeDecode(dataset?: JsonStatDataset | null) {
 }
 
 export default function MarketsIncomePage() {
+  const [showExtendedCharts, setShowExtendedCharts] = useState(false);
   const aea01 = useQuery({
     queryKey: ["cso", "AEA01"],
     queryFn: () => fetchCso("AEA01"),
@@ -114,26 +122,31 @@ export default function MarketsIncomePage() {
   const aaa09 = useQuery({
     queryKey: ["cso", "AAA09"],
     queryFn: () => fetchCso("AAA09"),
+    enabled: showExtendedCharts,
     ...queryDefaults,
   });
   const adm01 = useQuery({
     queryKey: ["cso", "ADM01"],
     queryFn: () => fetchCso("ADM01"),
+    enabled: showExtendedCharts,
     ...queryDefaults,
   });
   const akm03 = useQuery({
     queryKey: ["cso", "AKM03"],
     queryFn: () => fetchCso("AKM03"),
+    enabled: showExtendedCharts,
     ...queryDefaults,
   });
   const ajm09 = useQuery({
     queryKey: ["cso", "AJM09"],
     queryFn: () => fetchCso("AJM09"),
+    enabled: showExtendedCharts,
     ...queryDefaults,
   });
   const pfsa03 = useQuery({
     queryKey: ["cso", "PFSA03"],
     queryFn: () => fetchCso("PFSA03"),
+    enabled: showExtendedCharts,
     ...queryDefaults,
   });
 
@@ -156,7 +169,7 @@ export default function MarketsIncomePage() {
       if (!response.ok) {
         throw new Error("Failed to load CAP county data");
       }
-      return (await response.json()) as CountyAggregate[];
+      return (await response.json()) as SourceSnapshot<CountyAggregate[]>;
     },
     ...queryDefaults,
   });
@@ -203,7 +216,6 @@ export default function MarketsIncomePage() {
   const [fromYear, setFromYear] = useState(Math.max(minYear, maxYear - 8));
   const [toYear, setToYear] = useState(maxYear);
   const [region, setRegion] = useState("-");
-  const [showExtendedCharts, setShowExtendedCharts] = useState(false);
   const [draftFromYear, setDraftFromYear] = useState(String(fromYear));
   const [draftToYear, setDraftToYear] = useState(String(toYear));
   const enterprise = useUiStore((state) => state.enterprise);
@@ -604,7 +616,7 @@ export default function MarketsIncomePage() {
   );
 
   const capTable = useReactTable({
-    data: capCountyQuery.data?.slice(0, 12) ?? [],
+    data: capCountyQuery.data?.data?.slice(0, 12) ?? [],
     columns: capColumns,
     getCoreRowModel: getCoreRowModel(),
   });
@@ -613,7 +625,7 @@ export default function MarketsIncomePage() {
     sumByYear(
       decoded.aea01,
       "TLIST(A1)",
-      { STATISTIC: "AEA01C55", C02196V02652: "-" },
+      { STATISTIC: "AEA01C28", C02196V02652: "-" },
       dataFromYear,
       dataToYear,
     ),
@@ -626,24 +638,20 @@ export default function MarketsIncomePage() {
     : 0;
   const latestExportYear = exportsByYear.at(-1)?.year;
 
-  const loading =
-    aea01.isLoading ||
-    aca03.isLoading ||
-    ahm05.isLoading ||
-    aaa09.isLoading ||
-    adm01.isLoading ||
-    akm03.isLoading ||
-    ajm09.isLoading ||
-    pfsa03.isLoading;
+  const loading = aea01.isLoading || aca03.isLoading || ahm05.isLoading;
   const datasetErrors = [
     ["AEA01", aea01.error],
     ["ACA03", aca03.error],
     ["AHM05", ahm05.error],
-    ["AAA09", aaa09.error],
-    ["ADM01", adm01.error],
-    ["AKM03", akm03.error],
-    ["AJM09", ajm09.error],
-    ["PFSA03", pfsa03.error],
+    ...(showExtendedCharts
+      ? [
+          ["AAA09", aaa09.error],
+          ["ADM01", adm01.error],
+          ["AKM03", akm03.error],
+          ["AJM09", ajm09.error],
+          ["PFSA03", pfsa03.error],
+        ]
+      : []),
     ["exports", exportsQuery.error],
     ["cap-counties", capCountyQuery.error],
   ].filter((entry): entry is [string, Error] => entry[1] instanceof Error);
@@ -744,13 +752,15 @@ export default function MarketsIncomePage() {
             loading
               ? "Loading"
               : kpiTotalOutput
-                ? currency.format(kpiTotalOutput)
+                ? formatEuroMillions(kpiTotalOutput)
                 : "Unavailable"
           }
           icon={Banknote}
           variant="success"
           trend={
-            marketsReady ? "CSO feed loaded" : "Do not use as a zero value"
+            marketsReady
+              ? "CSO Agricultural Output at Basic Prices · Euro million"
+              : "Do not use as a zero value"
           }
         />
         <KpiCard

@@ -36,7 +36,6 @@ describe("farm-specific planning copy", () => {
     assert.match(
       complianceActionForEnterprise("mixed", "compliance", {
         goodHighShare: 75,
-        biodiversityIsSample: true,
       }),
       /nitrate zone/,
     );

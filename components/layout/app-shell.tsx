@@ -1,161 +1,213 @@
 "use client";
 
-import { CloudRain, Leaf, MapPin, TrendingUp } from "lucide-react";
+import {
+  CalendarDays,
+  ChartNoAxesCombined,
+  CloudSun,
+  LandPlot,
+  Leaf,
+  Settings2,
+  SlidersHorizontal,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { ChatSidebar } from "@/components/genui/chat-sidebar";
-import { FarmProfileBar } from "@/components/layout/farm-profile-bar";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
-} from "@/components/ui/sidebar";
 import { useUiStore } from "@/lib/store/ui-store";
 import { cn } from "@/lib/utils";
 
-const tabs = [
-  { href: "/my-land", label: "My Land", key: "my-land", icon: MapPin },
-  {
-    href: "/markets-income",
-    label: "Markets & Income",
-    key: "markets-income",
-    icon: TrendingUp,
-  },
+const primaryNav = [
+  { href: "/this-week", label: "This week", shortLabel: "Week", icon: Leaf },
+  { href: "/my-land", label: "Land", shortLabel: "Land", icon: LandPlot },
   {
     href: "/weather-water",
-    label: "Weather & Water",
-    key: "weather-water",
-    icon: CloudRain,
+    label: "Conditions",
+    shortLabel: "Conditions",
+    icon: CloudSun,
   },
   {
-    href: "/environment-compliance",
-    label: "Environment & Compliance",
-    key: "environment-compliance",
-    icon: Leaf,
+    href: "/calendar",
+    label: "Calendar",
+    shortLabel: "Calendar",
+    icon: CalendarDays,
   },
 ] as const;
 
-const genUiEnabled = process.env.NEXT_PUBLIC_ENABLE_GENUI === "true";
+const secondaryNav = [
+  {
+    href: "/markets-income",
+    label: "Markets",
+    icon: ChartNoAxesCombined,
+  },
+  {
+    href: "/environment-compliance",
+    label: "Environment",
+    icon: SlidersHorizontal,
+  },
+] as const;
 
 function BrandMark() {
   return (
-    <svg viewBox="0 0 28 28" fill="none" className="h-7 w-7" aria-hidden="true">
-      <rect width="28" height="28" rx="6" className="fill-sidebar-primary" />
+    <svg viewBox="0 0 32 32" fill="none" className="h-8 w-8" aria-hidden="true">
       <path
-        d="M7 20 C7 14, 10 10, 14 8 C18 10, 21 14, 21 20"
+        d="M5 24.5C7.5 17 11 11.5 16 7.5c5 4 8.5 9.5 11 17"
         stroke="currentColor"
-        strokeWidth="1.8"
+        strokeWidth="1.6"
         strokeLinecap="round"
-        fill="none"
-        className="text-sidebar-primary-foreground"
       />
       <path
-        d="M14 8 L14 20"
+        d="M16 7.5v17M9.5 20c1.6-2.8 3.7-5 6.5-6.5M22.5 20c-1.6-2.8-3.7-5-6.5-6.5"
         stroke="currentColor"
-        strokeWidth="1.4"
+        strokeWidth="1.35"
         strokeLinecap="round"
-        className="text-sidebar-primary-foreground"
-      />
-      <path
-        d="M10 15 C11 13, 13 11, 14 11"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-        fill="none"
-        className="text-sidebar-primary-foreground/60"
-      />
-      <path
-        d="M18 15 C17 13, 15 11, 14 11"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-        fill="none"
-        className="text-sidebar-primary-foreground/60"
+        opacity=".65"
       />
     </svg>
   );
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+function NavLink({
+  href,
+  label,
+  icon: Icon,
+}: {
+  href: string;
+  label: string;
+  icon: typeof Leaf;
+}) {
   const pathname = usePathname();
+  const active = pathname === href;
   const setActiveTab = useUiStore((state) => state.setActiveTab);
 
   return (
-    <div
+    <Link
+      href={href}
+      onClick={() => setActiveTab(href.slice(1))}
+      aria-current={active ? "page" : undefined}
       className={cn(
-        "min-h-screen bg-background md:grid",
-        genUiEnabled
-          ? "md:grid-cols-[18rem_1fr_22rem]"
-          : "md:grid-cols-[18rem_1fr]",
+        "flex min-h-11 items-center gap-3 rounded-md border border-transparent px-3 text-sm font-medium transition-colors",
+        active
+          ? "border-sidebar-border bg-sidebar-accent text-sidebar-accent-foreground"
+          : "text-sidebar-foreground/72 hover:bg-sidebar-accent/55 hover:text-sidebar-accent-foreground",
       )}
     >
-      <Sidebar>
-        <SidebarHeader className="p-3 md:p-4">
-          <div className="flex items-center gap-3">
+      <Icon
+        className={cn(
+          "h-[18px] w-[18px]",
+          active ? "text-sidebar-primary" : "text-sidebar-foreground/55",
+        )}
+      />
+      {label}
+    </Link>
+  );
+}
+
+export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+
+  return (
+    <div className="min-h-dvh bg-background md:grid md:grid-cols-[216px_minmax(0,1fr)]">
+      <aside className="paper-grain hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex md:h-dvh md:flex-col">
+        <header className="flex h-20 items-center gap-3 border-b border-sidebar-border px-5">
+          <span className="text-sidebar-primary">
             <BrandMark />
-            <div>
-              <h1 className="text-sm font-semibold tracking-tight text-sidebar-primary-foreground">
-                AgriView
-              </h1>
-              <p className="text-xs text-sidebar-foreground/50">
-                Farm Intelligence
-              </p>
-            </div>
+          </span>
+          <div>
+            <p className="font-editorial text-xl font-medium leading-none text-sidebar-accent-foreground">
+              AgriView
+            </p>
+            <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/45">
+              Weekly farm brief
+            </p>
           </div>
-        </SidebarHeader>
-        <SidebarContent className="p-2 md:p-3">
-          <p className="mb-2 hidden px-3 text-[10px] font-medium uppercase text-sidebar-foreground/40 md:block">
-            Dashboard
+        </header>
+
+        <div className="flex flex-1 flex-col px-3 py-5">
+          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/38">
+            Farm
           </p>
-          <nav className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] md:grid md:gap-1 md:overflow-visible md:pb-0 [&::-webkit-scrollbar]:hidden">
-            {tabs.map((tab) => {
-              const active = pathname === tab.href;
-              const Icon = tab.icon;
-              return (
-                <Link
-                  key={tab.href}
-                  href={tab.href}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={cn(
-                    "group flex min-w-max items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors md:gap-3 md:py-2.5",
-                    active
-                      ? "border-l-2 border-sidebar-primary bg-sidebar-accent text-sidebar-primary-foreground"
-                      : "border-l-2 border-transparent text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-primary-foreground",
-                  )}
-                >
-                  <Icon
-                    className={cn(
-                      "h-4 w-4 shrink-0 transition-colors",
-                      active
-                        ? "text-sidebar-primary"
-                        : "text-sidebar-foreground/50 group-hover:text-sidebar-primary",
-                    )}
-                  />
-                  {tab.label}
-                </Link>
-              );
-            })}
+          <nav aria-label="Primary navigation" className="grid gap-1">
+            {primaryNav.map((item) => (
+              <NavLink key={item.href} {...item} />
+            ))}
           </nav>
-        </SidebarContent>
-        <SidebarFooter className="hidden md:block">
-          <ThemeToggle />
-          <p className="mt-2 text-center text-[10px] text-sidebar-foreground/30">
-            v0.1.0
+
+          <p className="mb-2 mt-7 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/38">
+            Evidence
           </p>
-        </SidebarFooter>
-      </Sidebar>
-      <main className="overflow-y-auto p-4 md:h-screen md:p-6">
-        <FarmProfileBar />
-        {children}
-      </main>
-      {genUiEnabled ? (
-        <div className="hidden md:block">
-          <ChatSidebar />
+          <nav aria-label="Evidence navigation" className="grid gap-1">
+            {secondaryNav.map((item) => (
+              <NavLink key={item.href} {...item} />
+            ))}
+          </nav>
         </div>
-      ) : null}
+
+        <footer className="border-t border-sidebar-border p-3">
+          <div className="flex items-center justify-between px-2">
+            <Link
+              href="/my-land"
+              className="flex min-h-11 items-center gap-2 text-xs font-medium text-sidebar-foreground/60 hover:text-sidebar-accent-foreground"
+            >
+              <Settings2 className="h-4 w-4" />
+              Farm settings
+            </Link>
+            <ThemeToggle />
+          </div>
+        </footer>
+      </aside>
+
+      <div className="min-w-0">
+        <header className="paper-grain sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur md:hidden">
+          <Link href="/this-week" className="flex items-center gap-2">
+            <span className="text-primary">
+              <BrandMark />
+            </span>
+            <span className="font-editorial text-xl font-medium">AgriView</span>
+          </Link>
+          <ThemeToggle />
+        </header>
+
+        <main className="mx-auto min-h-dvh w-full max-w-[1120px] px-4 pb-28 pt-7 sm:px-7 md:px-10 md:pb-16 md:pt-10">
+          {children}
+        </main>
+      </div>
+
+      <nav
+        aria-label="Mobile navigation"
+        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-background/96 px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1 backdrop-blur md:hidden"
+      >
+        {primaryNav.map((item) => {
+          const active = pathname === item.href;
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-[10px] font-semibold",
+                active ? "text-primary" : "text-muted-foreground",
+              )}
+            >
+              <Icon className="h-5 w-5" />
+              {item.shortLabel}
+            </Link>
+          );
+        })}
+        <Link
+          href="/markets-income"
+          aria-current={pathname === "/markets-income" ? "page" : undefined}
+          className={cn(
+            "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-[10px] font-semibold",
+            pathname === "/markets-income"
+              ? "text-primary"
+              : "text-muted-foreground",
+          )}
+        >
+          <ChartNoAxesCombined className="h-5 w-5" />
+          More
+        </Link>
+      </nav>
     </div>
   );
 }

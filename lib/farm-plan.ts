@@ -76,7 +76,7 @@ export function weatherActionForEnterprise(
 export function complianceActionForEnterprise(
   enterprise: FarmEnterprise,
   focus: FarmWeekFocus,
-  signals: { goodHighShare: number | null; biodiversityIsSample: boolean },
+  signals: { goodHighShare: number | null },
 ) {
   if (focus === "compliance") {
     return "Start with nitrate zone, waterbody status, and any protected-species prompts before scheduling field work.";
@@ -94,7 +94,5 @@ export function complianceActionForEnterprise(
     return "Water status is weak enough to raise the bar for nutrient and bank-side decisions.";
   }
 
-  return signals.biodiversityIsSample
-    ? "Treat habitat data as a survey prompt, not evidence; verify before compliance decisions."
-    : "Compliance signals do not show an immediate blocker, but field-specific checks still matter.";
+  return "Compliance signals do not show an immediate blocker, but field-specific checks still matter.";
 }

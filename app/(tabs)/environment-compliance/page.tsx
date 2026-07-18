@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Droplets, Fish, Leaf, Shield } from "lucide-react";
+import { Droplets, Fish } from "lucide-react";
 import { useMemo, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 import MapView, { Layer, Source } from "react-map-gl/maplibre";
@@ -14,12 +14,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  ChartState,
-  DataNotice,
-  DecisionPanel,
-} from "@/components/ui/data-status";
+import { ChartState, DecisionPanel } from "@/components/ui/data-status";
 import { KpiCard } from "@/components/ui/kpi-card";
+import type { SourceSnapshot } from "@/lib/contracts/source-snapshot";
 import {
   decodeJsonStat,
   type JsonStatDataset,
@@ -29,24 +26,6 @@ import { complianceActionForEnterprise } from "@/lib/farm-plan";
 import { useUiStore } from "@/lib/store/ui-store";
 
 type LatLng = { latitude: number; longitude: number };
-
-type BiodiversityResponse = {
-  totalRecords: number;
-  protectedCount: number;
-  topSpecies: Array<{ species: string; count: number }>;
-  records: Array<{
-    species: string;
-    protected: boolean;
-    lat: number;
-    lng: number;
-    distanceKm: number;
-  }>;
-  source?: {
-    status: "sample";
-    label: string;
-    warning: string;
-  };
-};
 
 function statusColorExpression(property: string) {
   return [
@@ -87,10 +66,12 @@ export default function EnvironmentCompliancePage() {
         `/api/data/epa/wfd-status?lat=${location.latitude}&lng=${location.longitude}&radius=1.2`,
       );
       if (!response.ok) throw new Error("WFD status failed");
-      return response.json() as Promise<{
-        rivers: GeoJSON.FeatureCollection;
-        groundwater: GeoJSON.FeatureCollection;
-      }>;
+      return response.json() as Promise<
+        SourceSnapshot<{
+          rivers: GeoJSON.FeatureCollection;
+          groundwater: GeoJSON.FeatureCollection;
+        }>
+      >;
     },
   });
 
@@ -102,17 +83,6 @@ export default function EnvironmentCompliancePage() {
       );
       if (!response.ok) throw new Error("Nitrates failed");
       return response.json() as Promise<GeoJSON.FeatureCollection>;
-    },
-  });
-
-  const biodiversityQuery = useQuery({
-    queryKey: ["biodiversity", location.latitude, location.longitude],
-    queryFn: async () => {
-      const response = await fetch(
-        `/api/data/biodiversity/search?lat=${location.latitude}&lng=${location.longitude}&radiusKm=60`,
-      );
-      if (!response.ok) throw new Error("Biodiversity failed");
-      return response.json() as Promise<BiodiversityResponse>;
     },
   });
 
@@ -165,14 +135,14 @@ export default function EnvironmentCompliancePage() {
   const statusCounts = useMemo(() => {
     const counts = new Map<string, number>();
 
-    for (const feature of wfdQuery.data?.rivers.features ?? []) {
+    for (const feature of wfdQuery.data?.data?.rivers.features ?? []) {
       const status = String(
         (feature.properties as Record<string, unknown>)?.Status ?? "Unknown",
       );
       counts.set(status, (counts.get(status) ?? 0) + 1);
     }
 
-    for (const feature of wfdQuery.data?.groundwater.features ?? []) {
+    for (const feature of wfdQuery.data?.data?.groundwater.features ?? []) {
       const status = String(
         (feature.properties as Record<string, unknown>)?.Overall_GW_Status ??
           "Unknown",
@@ -228,8 +198,6 @@ export default function EnvironmentCompliancePage() {
         goodHighShare: totalWaterbodies
           ? Math.round((goodHighCount / totalWaterbodies) * 100)
           : null,
-        biodiversityIsSample:
-          biodiversityQuery.data?.source?.status === "sample",
       }),
     },
   ];
@@ -238,7 +206,7 @@ export default function EnvironmentCompliancePage() {
     <div className="grid gap-6">
       <DecisionPanel title="Compliance watch points" items={complianceItems} />
 
-      <section className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2">
         <KpiCard
           label="Waterbodies in view"
           value={
@@ -263,36 +231,7 @@ export default function EnvironmentCompliancePage() {
           variant="success"
           trend={totalWaterbodies ? "Local catchment status" : "No status rows"}
         />
-        <KpiCard
-          label="Sample biodiversity records"
-          value={
-            biodiversityQuery.isLoading
-              ? "Loading"
-              : (biodiversityQuery.data?.totalRecords ?? "Unavailable")
-          }
-          icon={Leaf}
-          variant="default"
-          trend="Prototype data, not live NBDC"
-        />
-        <KpiCard
-          label="Protected species records"
-          value={
-            biodiversityQuery.isLoading
-              ? "Loading"
-              : (biodiversityQuery.data?.protectedCount ?? "Unavailable")
-          }
-          icon={Shield}
-          variant="warning"
-          trend="Use as survey prompt only"
-        />
       </section>
-
-      {biodiversityQuery.data?.source?.status === "sample" ? (
-        <DataNotice title="Biodiversity data is sample-backed" tone="warning">
-          This surface is labelled as a prototype workflow. It should guide what
-          to investigate next, not be used as a live NBDC compliance record.
-        </DataNotice>
-      ) : null}
 
       <Card>
         <CardHeader>
@@ -445,11 +384,11 @@ export default function EnvironmentCompliancePage() {
                 </Source>
               ) : null}
 
-              {wfdQuery.data?.groundwater ? (
+              {wfdQuery.data?.data?.groundwater ? (
                 <Source
                   id="wfd-groundwater"
                   type="geojson"
-                  data={wfdQuery.data.groundwater}
+                  data={wfdQuery.data.data.groundwater}
                 >
                   <Layer
                     id="wfd-groundwater-fill"
@@ -464,11 +403,11 @@ export default function EnvironmentCompliancePage() {
                 </Source>
               ) : null}
 
-              {wfdQuery.data?.rivers ? (
+              {wfdQuery.data?.data?.rivers ? (
                 <Source
                   id="wfd-rivers"
                   type="geojson"
-                  data={wfdQuery.data.rivers}
+                  data={wfdQuery.data.data.rivers}
                 >
                   <Layer
                     id="wfd-rivers-line"
@@ -485,72 +424,39 @@ export default function EnvironmentCompliancePage() {
         </CardContent>
       </Card>
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Catchment Status Summary</CardTitle>
-            <CardDescription>
-              Water quality status counts in current map view.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ChartState
-              isLoading={wfdQuery.isLoading}
-              isError={wfdQuery.isError}
-              isEmpty={!statusCounts.length}
-            >
-              <ThemedChart
-                style={{ height: 300 }}
-                option={{
-                  tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-                  xAxis: {
-                    type: "category",
-                    data: statusCounts.map((item) => item.status),
+      <Card>
+        <CardHeader>
+          <CardTitle>Catchment Status Summary</CardTitle>
+          <CardDescription>
+            Water quality status counts in the current map search area.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ChartState
+            isLoading={wfdQuery.isLoading}
+            isError={wfdQuery.isError}
+            isEmpty={!statusCounts.length}
+          >
+            <ThemedChart
+              style={{ height: 300 }}
+              option={{
+                tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+                xAxis: {
+                  type: "category",
+                  data: statusCounts.map((item) => item.status),
+                },
+                yAxis: { type: "value" },
+                series: [
+                  {
+                    type: "bar",
+                    data: statusCounts.map((item) => item.count),
                   },
-                  yAxis: { type: "value" },
-                  series: [
-                    {
-                      type: "bar",
-                      data: statusCounts.map((item) => item.count),
-                    },
-                  ],
-                }}
-              />
-            </ChartState>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Biodiversity Search by Area</CardTitle>
-            <CardDescription>
-              Prototype sample records filtered by proximity to selected map
-              location.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3 text-sm">
-            <p>
-              Search center: {location.latitude.toFixed(3)},{" "}
-              {location.longitude.toFixed(3)}
-            </p>
-            <p>Total records: {biodiversityQuery.data?.totalRecords ?? 0}</p>
-            <p>
-              Protected species records:{" "}
-              {biodiversityQuery.data?.protectedCount ?? 0}
-            </p>
-            <div className="grid gap-2">
-              {(biodiversityQuery.data?.topSpecies ?? []).map((item) => (
-                <div
-                  key={item.species}
-                  className="rounded-md border border-border p-2"
-                >
-                  {item.species}: {item.count}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+                ],
+              }}
+            />
+          </ChartState>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

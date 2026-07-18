@@ -4,6 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 import { useEffect, useState } from "react";
 import MapView, { Layer, Source } from "react-map-gl/maplibre";
+import { farmMapColors, farmMapStyle } from "@/lib/map/style";
 
 type LatLng = { latitude: number; longitude: number };
 
@@ -44,7 +45,7 @@ export function IrelandMap({
   return (
     <div className="h-[420px] w-full overflow-hidden rounded-lg border border-border">
       <MapView
-        mapStyle="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
+        mapStyle={farmMapStyle}
         {...viewState}
         onMove={(event) => {
           setViewState(event.viewState);
@@ -77,7 +78,7 @@ export function IrelandMap({
               id="lpis-fill"
               type="fill"
               paint={{
-                "fill-color": "#22c55e",
+                "fill-color": farmMapColors.parcelFill,
                 "fill-opacity": 0.25,
               }}
             />
@@ -85,7 +86,7 @@ export function IrelandMap({
               id="lpis-outline"
               type="line"
               paint={{
-                "line-color": "#15803d",
+                "line-color": farmMapColors.parcelLine,
                 "line-width": 1.5,
               }}
             />
@@ -98,7 +99,7 @@ export function IrelandMap({
               id="nitrate-fill"
               type="fill"
               paint={{
-                "fill-color": "#f59e0b",
+                "fill-color": farmMapColors.nitrateFill,
                 "fill-opacity": 0.2,
               }}
             />
@@ -106,7 +107,7 @@ export function IrelandMap({
               id="nitrate-outline"
               type="line"
               paint={{
-                "line-color": "#b45309",
+                "line-color": farmMapColors.nitrateLine,
                 "line-width": 1.5,
               }}
             />

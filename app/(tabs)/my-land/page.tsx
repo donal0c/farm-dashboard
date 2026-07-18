@@ -1,9 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { AreaChart } from "@tremor/react";
 import { useEffect, useMemo, useState } from "react";
-import { SampleYieldChart } from "@/components/charts/sample-yield-chart";
 import { IrelandMap } from "@/components/map/ireland-map";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { DataNotice, DecisionPanel } from "@/components/ui/data-status";
+import type { SourceSnapshot } from "@/lib/contracts/source-snapshot";
 import routingKeys from "@/lib/data/eircode-routing-keys.json";
 import { useUiStore } from "@/lib/store/ui-store";
 
@@ -23,15 +22,6 @@ type RoutingKey = {
   name: string;
   description: string;
 };
-
-const kpiData = [
-  { month: "Jan", area: 120 },
-  { month: "Feb", area: 124 },
-  { month: "Mar", area: 126 },
-  { month: "Apr", area: 130 },
-  { month: "May", area: 133 },
-  { month: "Jun", area: 134 },
-];
 
 const defaultCenter: LatLng = {
   latitude: 53.5,
@@ -44,18 +34,6 @@ function extractRoutingKey(value: string) {
   return match?.[1] ?? null;
 }
 
-function normalizeEircode(value: string) {
-  return value.toUpperCase().replace(/\s+/g, "");
-}
-
-function formatEircode(value: string) {
-  const normalized = normalizeEircode(value);
-  if (!/^(D6W|[A-Z]\d{2})[0-9A-Z]{4}$/.test(normalized)) {
-    return null;
-  }
-  return `${normalized.slice(0, 3)} ${normalized.slice(3)}`;
-}
-
 function countyFromDescription(description: string) {
   const tokens = description
     .replace(/\d+/g, "")
@@ -64,19 +42,6 @@ function countyFromDescription(description: string) {
     .filter(Boolean);
 
   return tokens[tokens.length - 1]?.toUpperCase() ?? "";
-}
-
-function distanceKm(a: LatLng, b: LatLng) {
-  const radians = Math.PI / 180;
-  const dLat = (b.latitude - a.latitude) * radians;
-  const dLng = (b.longitude - a.longitude) * radians;
-  const lat1 = a.latitude * radians;
-  const lat2 = b.latitude * radians;
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-
-  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
 
 export default function MyLandPage() {
@@ -122,7 +87,9 @@ export default function MyLandPage() {
       if (!response.ok) {
         throw new Error("LPIS query failed");
       }
-      return response.json() as Promise<GeoJSON.FeatureCollection>;
+      return response.json() as Promise<
+        SourceSnapshot<GeoJSON.FeatureCollection>
+      >;
     },
   });
 
@@ -156,32 +123,28 @@ export default function MyLandPage() {
       }
 
       return response.json() as Promise<{
-        county: string;
-        beneficiaryCount: number;
-        totalPayment: number;
+        data: {
+          county: string;
+          beneficiaries: number;
+          totalPayment: number;
+        } | null;
       }>;
     },
     enabled: Boolean(county),
   });
 
-  const parcelPreview = (lpisQuery.data?.features ?? [])
+  const parcelPreview = (lpisQuery.data?.data?.features ?? [])
     .map((feature) => {
       const properties = (feature.properties ?? {}) as Record<string, unknown>;
       return {
-        id: String(properties.LNU_PARCEL_ID ?? properties.id ?? "Unknown"),
-        cropType: String(
-          properties.CROP_DESC ?? properties.CROP_TYPE ?? "Unknown",
-        ),
-        areaHa: Number(properties.DIGITISED_AREA ?? properties.AREA_HA ?? 0),
-        tenure: String(
-          properties.TENURE_STATUS ??
-            properties.COMMONAGE_INDICATOR ??
-            "Unknown",
-        ),
+        id: String(properties.parcelId ?? "Unknown"),
+        cropType: String(properties.cropCode ?? "Not published"),
+        areaHa: Number(properties.digitisedAreaHa ?? 0),
+        tenure: properties.commonage ? "Commonage indicator" : "Not indicated",
       };
     })
     .slice(0, 5);
-  const parcelCount = lpisQuery.data?.features.length ?? 0;
+  const parcelCount = lpisQuery.data?.data?.features.length ?? 0;
   const landDecisionItems = [
     {
       label: "Locate first",
@@ -218,45 +181,11 @@ export default function MyLandPage() {
     setLocation(nextLocation);
   };
 
-  const geocodeQuery = async (query: string) => {
-    const geocodeResponse = await fetch(
-      `/api/data/geocode?q=${encodeURIComponent(query)}`,
-    );
-    if (!geocodeResponse.ok) {
-      return null;
-    }
-
-    return (await geocodeResponse.json()) as LatLng;
-  };
-
   const onRoutingSubmit = async () => {
     const routingKey = extractRoutingKey(routingQuery);
     const match = (routingKeys as RoutingKey[]).find(
       (entry) => entry.name.toUpperCase() === routingKey,
     );
-
-    const formattedEircode = formatEircode(routingQuery);
-    if (formattedEircode) {
-      const exactLocation = await geocodeQuery(formattedEircode);
-      if (exactLocation) {
-        if (match) {
-          const areaLocation = await geocodeQuery(match.description);
-          const finalLocation =
-            areaLocation && distanceKm(exactLocation, areaLocation) > 75
-              ? areaLocation
-              : exactLocation;
-          setRoutingQuery(formattedEircode);
-          setSelectedRoutingKey(match);
-          setLocation(finalLocation);
-          return;
-        }
-
-        setRoutingQuery(formattedEircode);
-        setSelectedRoutingKey(null);
-        setLocation(exactLocation);
-        return;
-      }
-    }
 
     if (!routingKey || !match) {
       return;
@@ -273,8 +202,8 @@ export default function MyLandPage() {
           <CardHeader>
             <CardTitle>Farm Locator</CardTitle>
             <CardDescription>
-              Search an Eircode routing key (139 static entries) or click on map
-              to set farm location.
+              Search an approximate routing area, then click the map to place
+              the farm pin.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
@@ -335,7 +264,7 @@ export default function MyLandPage() {
               CAP Summary ({county ?? "No county selected"})
             </CardTitle>
             <CardDescription>
-              County-level 2024 CAP payment totals from DAFM data.
+              County-level 2025 CAP beneficiary totals from DAFM data.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -348,19 +277,19 @@ export default function MyLandPage() {
                 County CAP data did not load. Parcel and map context remain
                 available.
               </DataNotice>
-            ) : capSummaryQuery.data ? (
+            ) : capSummaryQuery.data?.data ? (
               <div className="grid gap-2 text-sm">
                 <p>
                   Beneficiaries:{" "}
                   <strong>
-                    {capSummaryQuery.data.beneficiaryCount.toLocaleString()}
+                    {capSummaryQuery.data.data.beneficiaries.toLocaleString()}
                   </strong>
                 </p>
                 <p>
                   Total payments:{" "}
                   <strong>
                     EUR{" "}
-                    {capSummaryQuery.data.totalPayment.toLocaleString(
+                    {capSummaryQuery.data.data.totalPayment.toLocaleString(
                       undefined,
                       { maximumFractionDigits: 0 },
                     )}
@@ -369,7 +298,7 @@ export default function MyLandPage() {
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Choose an Eircode routing key to load county CAP summary.
+                Choose a routing area to load the county CAP summary.
               </p>
             )}
           </CardContent>
@@ -388,7 +317,7 @@ export default function MyLandPage() {
           <IrelandMap
             center={location}
             onPickLocation={setLocation}
-            lpisGeoJson={lpisQuery.data}
+            lpisGeoJson={lpisQuery.data?.data ?? undefined}
             nitratesGeoJson={nitratesQuery.data}
             showSoilLayer={showSoilLayer}
             showNitrateLayer={showNitrateLayer}
@@ -396,75 +325,33 @@ export default function MyLandPage() {
         </CardContent>
       </Card>
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Parcel Preview</CardTitle>
-            <CardDescription>
-              Showing crop, area (ha), and tenure fields from LPIS response.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-2 text-sm">
-              {parcelPreview.length ? (
-                parcelPreview.map((parcel, index) => (
-                  <div
-                    key={`${parcel.id}-${parcel.cropType}-${index}`}
-                    className="rounded-md border border-border p-2"
-                  >
-                    <p>
-                      <strong>Parcel:</strong> {parcel.id}
-                    </p>
-                    <p>
-                      <strong>Crop:</strong> {parcel.cropType}
-                    </p>
-                    <p>
-                      <strong>Area:</strong> {parcel.areaHa.toFixed(2)} ha
-                    </p>
-                    <p>
-                      <strong>Tenure:</strong> {parcel.tenure}
-                    </p>
-                  </div>
-                ))
-              ) : (
-                <p className="text-muted-foreground">
-                  No parcel records returned for current map area.
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Yield Trend</CardTitle>
-            <CardDescription>
-              Monthly yield outlook index for selected area.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SampleYieldChart />
-          </CardContent>
-        </Card>
-      </section>
-
       <Card>
         <CardHeader>
-          <CardTitle>Area Trend</CardTitle>
+          <CardTitle>Nearby parcel preview</CardTitle>
           <CardDescription>
-            Farm area utilisation trend over recent months.
+            Current DAFM LPIS 2024 reference parcels near the selected point.
+            These do not establish farm ownership or boundaries.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <AreaChart
-            className="h-72"
-            data={kpiData}
-            index="month"
-            categories={["area"]}
-            yAxisWidth={48}
-            showLegend={false}
-            showAnimation
-          />
+          <div className="grid gap-2 text-sm">
+            {parcelPreview.length ? (
+              parcelPreview.map((parcel, index) => (
+                <div
+                  key={`${parcel.id}-${parcel.cropType}-${index}`}
+                  className="grid gap-1 border-b border-border py-3 last:border-b-0 sm:grid-cols-[1fr_auto_auto]"
+                >
+                  <p className="truncate font-medium">{parcel.cropType}</p>
+                  <p>{parcel.areaHa.toFixed(2)} ha</p>
+                  <p className="text-muted-foreground">{parcel.tenure}</p>
+                </div>
+              ))
+            ) : (
+              <p className="text-muted-foreground">
+                No parcel records returned for the current map area.
+              </p>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>
