@@ -18,6 +18,7 @@ import {
   jsonStatDatasetSchema,
 } from "@/lib/cso/jsonstat";
 import { sumByPeriodLabel, sumByYear } from "@/lib/data/market-series";
+import { formatEuroMillions, formatSourceState } from "@/lib/evidence-format";
 import { enterpriseLabels } from "@/lib/farm-plan";
 import { type FarmEnterprise, useUiStore } from "@/lib/store/ui-store";
 import { cn } from "@/lib/utils";
@@ -50,12 +51,6 @@ async function fetchCso(dataset: string) {
     `/api/data/cso/${dataset}`,
     jsonStatDatasetSchema,
   );
-}
-
-function euroMillions(value: number) {
-  return `€${new Intl.NumberFormat("en-IE", {
-    maximumFractionDigits: 1,
-  }).format(value)}m`;
 }
 
 export default function MarketsIncomePage() {
@@ -107,6 +102,10 @@ export default function MarketsIncomePage() {
     latestPrice && priorPrice && priorPrice.value
       ? ((latestPrice.value - priorPrice.value) / priorPrice.value) * 100
       : null;
+  const outputUnavailable =
+    outputQuery.isError || outputQuery.data?.status === "unavailable";
+  const priceUnavailable =
+    priceQuery.isError || priceQuery.data?.status === "unavailable";
 
   const changeIcon = (change: number | null) => {
     if (change === null || Math.abs(change) < 0.05) return Minus;
@@ -114,7 +113,7 @@ export default function MarketsIncomePage() {
   };
 
   return (
-    <div>
+    <div className="min-w-0">
       <header className="border-b border-border pb-7">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
           Markets · {enterpriseLabels[enterprise]} context
@@ -129,6 +128,29 @@ export default function MarketsIncomePage() {
         </p>
       </header>
 
+      <section className="grid gap-3 border-b border-border py-4 text-xs sm:grid-cols-3">
+        <div>
+          <p className="text-muted-foreground">Geography</p>
+          <p className="mt-1 font-semibold">Ireland · national series</p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">Publication cadence</p>
+          <p className="mt-1 font-semibold">
+            Annual output · monthly price index
+          </p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">Source state</p>
+          <p className="mt-1 font-semibold">
+            {outputQuery.isLoading
+              ? "Checking CSO"
+              : outputUnavailable
+                ? "Output series unavailable"
+                : `${formatSourceState(outputQuery.data?.status)} · checked ${outputQuery.data?.fetchedAt ? new Intl.DateTimeFormat("en-IE", { dateStyle: "medium" }).format(new Date(outputQuery.data.fetchedAt)) : "unknown"}`}
+          </p>
+        </div>
+      </section>
+
       <section className="grid border-b border-border md:grid-cols-2">
         <article className="border-b border-border py-7 md:border-b-0 md:border-r md:pr-8">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
@@ -138,7 +160,7 @@ export default function MarketsIncomePage() {
             <>
               <div className="mt-3 flex items-end gap-3">
                 <p className="font-editorial text-5xl font-medium">
-                  {euroMillions(latestOutput.value)}
+                  {formatEuroMillions(latestOutput.value)}
                 </p>
                 {outputChange !== null ? (
                   <p
@@ -160,9 +182,31 @@ export default function MarketsIncomePage() {
               </p>
             </>
           ) : (
-            <p className="mt-4 text-sm text-muted-foreground">
-              {outputQuery.isLoading ? "Loading CSO output…" : "Unavailable"}
-            </p>
+            <div className="mt-4 text-sm">
+              {outputQuery.isLoading ? (
+                <output
+                  className="block animate-pulse"
+                  aria-label="Loading annual CSO output"
+                >
+                  <span className="block h-12 w-44 rounded bg-muted" />
+                  <span className="mt-3 block h-4 w-64 max-w-full rounded bg-muted" />
+                </output>
+              ) : outputUnavailable ? (
+                <>
+                  <p className="font-semibold text-destructive">
+                    Annual output is temporarily unavailable.
+                  </p>
+                  <p className="mt-1 leading-6 text-muted-foreground">
+                    No national value or change has been substituted.
+                  </p>
+                </>
+              ) : (
+                <p className="text-muted-foreground">
+                  The current CSO release contains no matching annual series for
+                  this enterprise.
+                </p>
+              )}
+            </div>
           )}
         </article>
 
@@ -202,9 +246,30 @@ export default function MarketsIncomePage() {
               </p>
             </>
           ) : (
-            <p className="mt-4 text-sm text-muted-foreground">
-              {priceQuery.isLoading ? "Loading CSO prices…" : "Unavailable"}
-            </p>
+            <div className="mt-4 text-sm">
+              {priceQuery.isLoading ? (
+                <output
+                  className="block animate-pulse"
+                  aria-label="Loading monthly CSO price index"
+                >
+                  <span className="block h-12 w-36 rounded bg-muted" />
+                  <span className="mt-3 block h-4 w-56 max-w-full rounded bg-muted" />
+                </output>
+              ) : priceUnavailable ? (
+                <>
+                  <p className="font-semibold text-destructive">
+                    Monthly price index is temporarily unavailable.
+                  </p>
+                  <p className="mt-1 leading-6 text-muted-foreground">
+                    No index or direction has been inferred.
+                  </p>
+                </>
+              ) : (
+                <p className="text-muted-foreground">
+                  The current CSO release contains no matching monthly series.
+                </p>
+              )}
+            </div>
           )}
         </article>
       </section>
@@ -234,6 +299,7 @@ export default function MarketsIncomePage() {
             <ThemedChart
               style={{ height: 340 }}
               option={{
+                animation: false,
                 aria: {
                   enabled: true,
                   description: `${outputLabel[enterprise]} annual values in Euro million.`,
@@ -241,7 +307,7 @@ export default function MarketsIncomePage() {
                 tooltip: {
                   trigger: "axis",
                   valueFormatter: (value: unknown) =>
-                    euroMillions(Number(value)),
+                    formatEuroMillions(Number(value)),
                 },
                 grid: { left: 62, right: 16, top: 20, bottom: 42 },
                 xAxis: {
@@ -261,16 +327,45 @@ export default function MarketsIncomePage() {
                     smooth: false,
                     symbol: "circle",
                     symbolSize: 7,
+                    lineStyle: { color: "#3a8a5c", width: 2.5 },
+                    itemStyle: { color: "#3a8a5c" },
+                    areaStyle: { color: "#3a8a5c", opacity: 0.08 },
                     data: output.map((item) => item.value),
                   },
                 ],
               }}
             />
+            <dl
+              className="mt-4 grid grid-cols-1 gap-px overflow-hidden border border-border bg-border sm:grid-cols-[repeat(auto-fit,minmax(8rem,1fr))]"
+              aria-label="Latest annual output values"
+            >
+              {output.slice(-5).map((item) => (
+                <div key={item.year} className="bg-background px-3 py-3">
+                  <dt className="text-xs text-muted-foreground">{item.year}</dt>
+                  <dd className="mt-1 text-sm font-semibold">
+                    {formatEuroMillions(item.value)}
+                  </dd>
+                </div>
+              ))}
+            </dl>
           </div>
         ) : (
-          <p className="mt-6 text-sm text-muted-foreground">
-            No valid output series is available.
-          </p>
+          <div className="mt-6 border-l-2 border-border py-2 pl-4 text-sm">
+            <p
+              className={
+                outputUnavailable
+                  ? "font-semibold text-destructive"
+                  : "font-semibold"
+              }
+            >
+              {outputUnavailable
+                ? "The annual output source is unavailable."
+                : "No matching annual output series was published."}
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              No chart or zero value has been substituted.
+            </p>
+          </div>
         )}
       </section>
 
@@ -287,6 +382,7 @@ export default function MarketsIncomePage() {
               <ThemedChart
                 style={{ height: 300 }}
                 option={{
+                  animation: false,
                   aria: {
                     enabled: true,
                     description: `${enterpriseLabels[enterprise]} monthly output price index.`,
@@ -306,16 +402,47 @@ export default function MarketsIncomePage() {
                       type: "line",
                       smooth: false,
                       showSymbol: false,
+                      lineStyle: { color: "#3a8a5c", width: 2.5 },
+                      itemStyle: { color: "#3a8a5c" },
+                      areaStyle: { color: "#3a8a5c", opacity: 0.08 },
                       data: price.map((item) => item.value),
                     },
                   ],
                 }}
               />
+              <dl
+                className="mt-4 grid grid-cols-1 gap-px overflow-hidden border border-border bg-border sm:grid-cols-[repeat(auto-fit,minmax(8rem,1fr))]"
+                aria-label="Four latest monthly price-index values"
+              >
+                {price.slice(-4).map((item) => (
+                  <div key={item.label} className="bg-background px-3 py-3">
+                    <dt className="truncate text-xs text-muted-foreground">
+                      {item.label}
+                    </dt>
+                    <dd className="mt-1 text-sm font-semibold">
+                      {item.value.toFixed(1)}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
             </div>
           ) : (
-            <p className="mt-6 text-sm text-muted-foreground">
-              No valid price-index series is available.
-            </p>
+            <div className="mt-6 border-l-2 border-border py-2 pl-4 text-sm">
+              <p
+                className={
+                  priceUnavailable
+                    ? "font-semibold text-destructive"
+                    : "font-semibold"
+                }
+              >
+                {priceUnavailable
+                  ? "The monthly price-index source is unavailable."
+                  : "No matching monthly price-index series was published."}
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                No chart or direction has been inferred.
+              </p>
+            </div>
           )}
         </section>
       ) : null}
@@ -324,8 +451,9 @@ export default function MarketsIncomePage() {
         <Scale className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
         <p>
           Values retain the CSO unit. “Euro Million” is rendered as millions,
-          not literal euros. Zero is shown only when published; missing data is
-          unavailable.
+          with compact billions where appropriate. The percentage is a change in
+          the national series, not a farm return. Zero is shown only when
+          published; missing data is unavailable.
         </p>
       </footer>
     </div>

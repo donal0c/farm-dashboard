@@ -21,3 +21,27 @@ export function upcomingComplianceItems<T extends DatedComplianceItem>(
         left.days - right.days || left.id.localeCompare(right.id),
     );
 }
+
+export type ComplianceListFilter =
+  | "all"
+  | "scheme"
+  | "safety"
+  | "investment"
+  | "record";
+
+export type ComplianceListSort = "soonest" | "latest";
+
+export function filterAndSortComplianceItems<
+  T extends DatedComplianceItem & {
+    days: number;
+    category: Exclude<ComplianceListFilter, "all">;
+  },
+>(items: readonly T[], filter: ComplianceListFilter, sort: ComplianceListSort) {
+  return items
+    .filter((item) => filter === "all" || item.category === filter)
+    .toSorted((left, right) => {
+      const difference =
+        sort === "soonest" ? left.days - right.days : right.days - left.days;
+      return difference || left.id.localeCompare(right.id);
+    });
+}

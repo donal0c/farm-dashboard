@@ -1,23 +1,10 @@
-import {
-  CalendarClock,
-  CheckCircle2,
-  ExternalLink,
-  ShieldCheck,
-} from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 
+import { ComplianceWatchlist } from "@/components/calendar/compliance-watchlist";
 import { upcomingComplianceItems } from "@/lib/compliance/calendar";
 import { complianceDates2026 } from "@/lib/compliance/rules";
 
 export const revalidate = 3600;
-
-function formatDate(date: string) {
-  return new Intl.DateTimeFormat("en-IE", {
-    weekday: "short",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(`${date}T12:00:00Z`));
-}
 
 export default function CalendarPage() {
   const now = new Date();
@@ -56,61 +43,7 @@ export default function CalendarPage() {
         </div>
       </section>
 
-      <section className="border-b border-border">
-        {upcoming.map((item, index) => (
-          <article
-            key={item.id}
-            className="grid gap-5 border-b border-border py-7 last:border-b-0 lg:grid-cols-[110px_minmax(0,1fr)_220px]"
-          >
-            <div>
-              <p className="font-editorial text-3xl font-medium text-primary">
-                {item.days}
-              </p>
-              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                {item.days === 1 ? "day" : "days"}
-              </p>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                {index === 0 ? (
-                  <CalendarClock className="h-4 w-4 text-warning" />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4 text-primary" />
-                )}
-                <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                  {item.category} · {formatDate(item.date)}
-                </p>
-              </div>
-              <h2 className="font-editorial mt-2 text-3xl font-medium">
-                {item.title}
-              </h2>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                <strong className="font-semibold text-foreground">
-                  Applies to:
-                </strong>{" "}
-                {item.applicability}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                {item.action}
-              </p>
-            </div>
-            <div className="border-t border-border pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
-              <p className="text-xs text-muted-foreground">
-                Published {formatDate(item.source.publishedAt)}
-              </p>
-              <a
-                href={item.source.url}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary"
-              >
-                {item.source.label}
-                <ExternalLink className="h-4 w-4 shrink-0" />
-              </a>
-            </div>
-          </article>
-        ))}
-      </section>
+      <ComplianceWatchlist items={upcoming} />
 
       <section className="flex gap-4 py-7 text-sm leading-6 text-muted-foreground">
         <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />

@@ -88,12 +88,79 @@ const emptyFeatureCollection = {
 };
 
 const emptyJsonStat = {
-  class: "dataset",
-  id: [],
-  size: [],
-  dimension: {},
-  value: [],
+  class: "dataset" as const,
+  id: ["STATISTIC", "TLIST(A1)"],
+  size: [1, 1],
+  dimension: {
+    STATISTIC: { category: { index: ["NO_MATCH"] } },
+    "TLIST(A1)": {
+      category: { index: ["2025"], label: { "2025": "2025" } },
+    },
+  },
+  value: [null],
 };
+
+function csoDataset(dataset: "AEA01" | "AHM05") {
+  if (dataset === "AEA01") {
+    const statistics = [
+      "AEA01C02",
+      "AEA01C08",
+      "AEA01C04",
+      "AEA01C10",
+      "AEA01C28",
+    ];
+    const years = ["2023", "2024", "2025"];
+    return {
+      class: "dataset" as const,
+      id: ["STATISTIC", "C02196V02652", "TLIST(A1)"],
+      size: [statistics.length, 1, years.length],
+      dimension: {
+        STATISTIC: { category: { index: statistics } },
+        C02196V02652: { category: { index: ["-"] } },
+        "TLIST(A1)": {
+          category: {
+            index: years,
+            label: Object.fromEntries(years.map((year) => [year, year])),
+          },
+        },
+      },
+      value: statistics.flatMap((_, index) => [
+        2_000 + index * 2_500,
+        2_120 + index * 2_600,
+        2_250 + index * 2_700,
+      ]),
+    };
+  }
+
+  const commodities = ["01211", "01221", "01213", "011"];
+  const periods = ["202501", "202502", "202503", "202504"];
+  return {
+    class: "dataset" as const,
+    id: ["STATISTIC", "C02818V03389", "TLIST(M1)"],
+    size: [1, commodities.length, periods.length],
+    dimension: {
+      STATISTIC: { category: { index: ["AHM05C01"] } },
+      C02818V03389: { category: { index: commodities } },
+      "TLIST(M1)": {
+        category: {
+          index: periods,
+          label: {
+            "202501": "January 2025",
+            "202502": "February 2025",
+            "202503": "March 2025",
+            "202504": "April 2025",
+          },
+        },
+      },
+    },
+    value: commodities.flatMap((_, index) => [
+      108 + index,
+      109 + index,
+      108.5 + index,
+      111 + index,
+    ]),
+  };
+}
 
 async function setSavedFarm(
   page: Page,
@@ -136,6 +203,7 @@ type LandState = "live" | "empty" | "capped" | "unavailable" | "transport";
 type WarningState = "empty" | "unavailable";
 type ForecastState = "live" | "partial" | "unavailable";
 type OpwState = "live" | "empty" | "unavailable";
+type SupportingState = "live" | "empty" | "unavailable";
 
 async function installApiMocks(
   page: Page,
@@ -148,12 +216,16 @@ async function installApiMocks(
     warningStatus?: "live" | "partial";
     forecastDelayMs?: number;
     opw?: OpwState;
+    environment?: SupportingState;
+    markets?: SupportingState;
   } = {},
 ) {
   const land = options.land ?? "live";
   const warnings = options.warnings ?? "empty";
   const forecastState = options.forecastState ?? "live";
   const opw = options.opw ?? "empty";
+  const environment = options.environment ?? "empty";
+  const markets = options.markets ?? "empty";
   await page.route("**/api/data/**", async (route) => {
     const url = new URL(route.request().url());
 
@@ -257,11 +329,13 @@ async function installApiMocks(
       return;
     }
     if (url.pathname === "/api/data/nitrates") {
-      if (land === "transport") {
+      const nitrateState =
+        options.environment === undefined ? land : environment;
+      if (nitrateState === "transport") {
         await route.abort("failed");
         return;
       }
-      if (land === "unavailable") {
+      if (nitrateState === "unavailable") {
         await route.fulfill({
           status: 502,
           json: snapshot(null, { status: "unavailable", scope: "nearby" }),
@@ -269,7 +343,7 @@ async function installApiMocks(
         return;
       }
       const features =
-        land === "live" || land === "capped"
+        nitrateState === "live" || nitrateState === "capped"
           ? [
               {
                 type: "Feature",
@@ -358,11 +432,67 @@ async function installApiMocks(
       return;
     }
     if (url.pathname === "/api/data/epa/wfd-status") {
+      if (environment === "unavailable") {
+        await route.fulfill({
+          status: 502,
+          json: snapshot(null, { status: "unavailable", scope: "nearby" }),
+        });
+        return;
+      }
+      const rivers =
+        environment === "live"
+          ? {
+              type: "FeatureCollection",
+              features: [
+                {
+                  type: "Feature",
+                  id: "IE_EA_34C010200",
+                  geometry: null,
+                  properties: {
+                    European_Code: "IE_EA_34C010200",
+                    Name: "River Corrib",
+                    Status: "Good",
+                    Period_for_WFD_Status: "2019–2024",
+                  },
+                },
+                {
+                  type: "Feature",
+                  id: "IE_EA_30C020300",
+                  geometry: null,
+                  properties: {
+                    European_Code: "IE_EA_30C020300",
+                    Name: "",
+                    Status: "Moderate",
+                    Period_for_WFD_Status: "2019–2024",
+                  },
+                },
+              ],
+            }
+          : emptyFeatureCollection;
+      const groundwater =
+        environment === "live"
+          ? {
+              type: "FeatureCollection",
+              features: [
+                {
+                  type: "Feature",
+                  id: "IE_WE_G_010",
+                  geometry: null,
+                  properties: {
+                    European_Code: "IE_WE_G_010",
+                    Name: "Galway groundwater body",
+                    Overall_GW_Status: "Poor",
+                    Period_for_WFD_Status: "2019–2024",
+                  },
+                },
+              ],
+            }
+          : emptyFeatureCollection;
       await route.fulfill({
         json: snapshot(
           {
-            rivers: emptyFeatureCollection,
-            groundwater: emptyFeatureCollection,
+            rivers,
+            groundwater,
           },
           { scope: "nearby" },
         ),
@@ -370,8 +500,19 @@ async function installApiMocks(
       return;
     }
     if (url.pathname.startsWith("/api/data/cso/")) {
+      if (markets === "unavailable") {
+        await route.fulfill({
+          status: 502,
+          json: snapshot(null, { status: "unavailable", scope: "national" }),
+        });
+        return;
+      }
+      const dataset = url.pathname.endsWith("/AHM05") ? "AHM05" : "AEA01";
       await route.fulfill({
-        json: snapshot(emptyJsonStat, { scope: "national" }),
+        json: snapshot(
+          markets === "live" ? csoDataset(dataset) : emptyJsonStat,
+          { status: "cached", scope: "national" },
+        ),
       });
       return;
     }
@@ -734,6 +875,127 @@ test("keeps unavailable and valid-empty Conditions sources distinct", async ({
   await expectNoSeriousAxeViolations(page);
 });
 
+test("filters and sorts the verified Calendar watchlist accessibly", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date("2026-07-18T12:00:00.000Z"));
+  await page.goto("/calendar");
+
+  await expect(
+    page.getByText("Showing 5 of 5 verified upcoming dates."),
+  ).toBeVisible();
+  await page.getByLabel("Filter by purpose").selectOption("safety");
+  await expect(
+    page.getByText("Showing 1 of 5 verified upcoming dates."),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "National Farm Safety Measure closes" }),
+  ).toBeVisible();
+
+  await expect(
+    page.getByLabel("Filter by purpose").locator('option[value="record"]'),
+  ).toHaveCount(0);
+
+  await page.getByLabel("Filter by purpose").selectOption("all");
+  await page.getByLabel("Sort dates").selectOption("latest");
+  await expect(page.locator("article").first().getByRole("heading")).toHaveText(
+    "TAMS 3 Tranche 14 closes",
+  );
+  await expectNoSeriousAxeViolations(page);
+});
+
+test("renders national Market values with honest scope and compact money", async ({
+  page,
+}) => {
+  await setSavedFarm(page, { enterprise: "mixed" });
+  await installApiMocks(page, { markets: "live" });
+  await page.goto("/markets-income");
+
+  await expect(page.getByText("€13.1bn").first()).toBeVisible();
+  await expect(page.getByText("Ireland · national series")).toBeVisible();
+  await expect(
+    page.getByText(/not your sale price, margin, or a recommendation/),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/mixed enterprise has no honest single commodity index/i),
+  ).toBeVisible();
+  await expect(page.getByLabel("Latest annual output values")).toBeVisible();
+  await expectNoSeriousAxeViolations(page);
+});
+
+test("keeps empty and unavailable Market releases distinct", async ({
+  page,
+}) => {
+  await setSavedFarm(page, { enterprise: "dairy" });
+  await installApiMocks(page, { markets: "empty" });
+  await page.goto("/markets-income");
+
+  await expect(
+    page.getByText(/contains no matching annual series/),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/contains no matching monthly series/),
+  ).toBeVisible();
+
+  await page.unrouteAll({ behavior: "wait" });
+  await installApiMocks(page, { markets: "unavailable" });
+  await page.reload();
+  await expect(
+    page.getByText("Annual output is temporarily unavailable."),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Monthly price index is temporarily unavailable."),
+  ).toBeVisible();
+  await expectNoSeriousAxeViolations(page);
+});
+
+test("leads Environment evidence with names and human nitrate units", async ({
+  page,
+}) => {
+  await setSavedFarm(page);
+  await installApiMocks(page, { environment: "live" });
+  await page.goto("/environment-compliance");
+
+  await expect(page.getByText("River Corrib")).toBeVisible();
+  await expect(
+    page.getByText("River waterbody without a published name"),
+  ).toBeVisible();
+  await expect(page.getByText("Code IE_EA_34C010200")).toBeVisible();
+  await expect(
+    page.getByText("220 kg organic N/ha", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(/Effective label: January 2024/)).toBeVisible();
+  await expect(
+    page.getByText(/screening signals—not a field assessment/),
+  ).toBeVisible();
+  await expectNoSeriousAxeViolations(page);
+});
+
+test("keeps empty and unavailable Environment searches distinct", async ({
+  page,
+}) => {
+  await setSavedFarm(page);
+  await installApiMocks(page, { environment: "empty" });
+  await page.goto("/environment-compliance");
+  await expect(
+    page.getByText(/No mapped waterbodies were returned/),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/No stocking-rate label was returned/),
+  ).toBeVisible();
+
+  await page.unrouteAll({ behavior: "wait" });
+  await installApiMocks(page, { environment: "unavailable" });
+  await page.reload();
+  await expect(
+    page.getByText(/EPA classifications are unavailable/),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/DAFM screening layer is unavailable/),
+  ).toBeVisible();
+  await expectNoSeriousAxeViolations(page);
+});
+
 test("contains focus in the mobile evidence dialog and restores its trigger", async ({
   page,
 }) => {
@@ -1087,6 +1349,44 @@ for (const route of ["my-land", "weather-water"] as const) {
                 ? [page.locator("[data-selected-parcel-id]")]
                 : [],
             maxDiffPixelRatio: route === "my-land" ? 0 : 0.001,
+          },
+        );
+      });
+    }
+  }
+}
+
+for (const route of [
+  "calendar",
+  "markets-income",
+  "environment-compliance",
+] as const) {
+  for (const viewport of visualMatrix) {
+    for (const theme of ["light", "dark"] as const) {
+      test(`${route} visual lock · ${viewport.name} · ${theme}`, async ({
+        page,
+      }) => {
+        await page.clock.setFixedTime(new Date("2026-07-18T12:00:00.000Z"));
+        await page.setViewportSize(viewport);
+        await setSavedFarm(page, { theme });
+        await installApiMocks(page, {
+          environment: "live",
+          markets: "live",
+        });
+        await page.goto(`/${route}`);
+        await expect(page.locator("h1")).toBeVisible();
+        await expect(page.locator("html")).toHaveClass(
+          theme === "dark" ? /dark/ : /light/,
+        );
+        await expect(page).toHaveScreenshot(
+          `${route}-${viewport.name}-${theme}.png`,
+          {
+            fullPage: true,
+            animations: "disabled",
+            caret: "hide",
+            mask:
+              route === "calendar" ? [page.locator("[data-days-until]")] : [],
+            maxDiffPixelRatio: 0.001,
           },
         );
       });

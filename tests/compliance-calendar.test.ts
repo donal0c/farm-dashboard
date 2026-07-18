@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   daysUntil,
+  filterAndSortComplianceItems,
   upcomingComplianceItems,
 } from "../lib/compliance/calendar.ts";
 
@@ -35,6 +36,26 @@ describe("compliance calendar filtering", () => {
     assert.deepEqual(
       result.map((item) => item.id),
       ["a", "b"],
+    );
+  });
+
+  it("filters by purpose and sorts in either direction with stable ties", () => {
+    const items = [
+      { id: "b", date: "2026-09-01", days: 20, category: "scheme" as const },
+      { id: "a", date: "2026-08-01", days: 10, category: "safety" as const },
+      { id: "c", date: "2026-09-02", days: 20, category: "scheme" as const },
+    ];
+    assert.deepEqual(
+      filterAndSortComplianceItems(items, "scheme", "soonest").map(
+        (item) => item.id,
+      ),
+      ["b", "c"],
+    );
+    assert.deepEqual(
+      filterAndSortComplianceItems(items, "all", "latest").map(
+        (item) => item.id,
+      ),
+      ["b", "c", "a"],
     );
   });
 });

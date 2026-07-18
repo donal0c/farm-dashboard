@@ -15,6 +15,12 @@ import { useMemo } from "react";
 
 import { fetchValidatedSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
 import { featureCollectionContract } from "@/lib/contracts/geojson";
+import {
+  formatPublishedReference,
+  formatSourceState,
+  humanizeWaterbodyName,
+} from "@/lib/evidence-format";
+import { formatNitrateScreeningLabel } from "@/lib/land-format";
 import { type WfdStatusData, wfdStatusDataSchema } from "@/lib/sources/epa-wfd";
 import { useUiStore } from "@/lib/store/ui-store";
 import { cn } from "@/lib/utils";
@@ -85,7 +91,7 @@ export default function EnvironmentCompliancePage() {
       if (!id || found.has(id)) continue;
       found.set(id, {
         id,
-        name: String(properties.Name ?? "Unnamed river waterbody"),
+        name: humanizeWaterbodyName(String(properties.Name ?? ""), "River"),
         kind: "River",
         status: String(properties.Status ?? "Not classified"),
         period: String(properties.Period_for_WFD_Status ?? "2019–2024"),
@@ -97,7 +103,10 @@ export default function EnvironmentCompliancePage() {
       if (!id || found.has(id)) continue;
       found.set(id, {
         id,
-        name: String(properties.Name ?? "Unnamed groundwater body"),
+        name: humanizeWaterbodyName(
+          String(properties.Name ?? ""),
+          "Groundwater",
+        ),
         kind: "Groundwater",
         status: String(properties.Overall_GW_Status ?? "Not classified"),
         period: String(properties.Period_for_WFD_Status ?? "2019–2024"),
@@ -137,6 +146,7 @@ export default function EnvironmentCompliancePage() {
     }
     return Array.from(rates).sort();
   }, [nitratesQuery.data]);
+  const nitrateLabels = stockingRates.map(formatNitrateScreeningLabel);
 
   if (!hasHydrated) {
     return (
@@ -170,11 +180,15 @@ export default function EnvironmentCompliancePage() {
   }
 
   const nonGoodCount = waterbodies.filter(
-    (item) => !["Good", "High"].includes(item.status),
+    (item) => !["Good", "High"].includes(baseStatus(item.status) ?? ""),
   ).length;
+  const wfdUnavailable =
+    wfdQuery.isError || wfdQuery.data?.status === "unavailable";
+  const nitratesUnavailable =
+    nitratesQuery.isError || nitratesQuery.data?.status === "unavailable";
 
   return (
-    <div>
+    <div className="min-w-0">
       <header className="border-b border-border pb-7">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
           Environment · nearby screening evidence
@@ -195,7 +209,12 @@ export default function EnvironmentCompliancePage() {
             Waterbodies returned nearby
           </p>
           <p className="font-editorial mt-2 text-4xl font-medium">
-            {wfdQuery.isLoading ? "—" : waterbodies.length || "—"}
+            {wfdQuery.isLoading || wfdUnavailable ? "—" : waterbodies.length}
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {wfdUnavailable
+              ? "Source unavailable"
+              : `${formatSourceState(wfdQuery.data?.status)} · nearby search`}
           </p>
         </div>
         <div className="border-b border-border py-6 sm:border-b-0 sm:border-r sm:px-6">
@@ -203,7 +222,10 @@ export default function EnvironmentCompliancePage() {
             Below Good / unclassified
           </p>
           <p className="font-editorial mt-2 text-4xl font-medium">
-            {wfdQuery.isLoading ? "—" : nonGoodCount}
+            {wfdQuery.isLoading || wfdUnavailable ? "—" : nonGoodCount}
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Classification period 2019–2024
           </p>
         </div>
         <div className="py-6 sm:pl-6">
@@ -213,7 +235,14 @@ export default function EnvironmentCompliancePage() {
           <p className="font-editorial mt-2 text-4xl font-medium">
             {nitratesQuery.isLoading
               ? "—"
-              : (nitratesQuery.data?.data?.features.length ?? "—")}
+              : nitratesUnavailable
+                ? "—"
+                : (nitratesQuery.data?.data?.features.length ?? 0)}
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {nitratesUnavailable
+              ? "Source unavailable"
+              : `${formatSourceState(nitratesQuery.data?.status)} · screening only`}
           </p>
         </div>
       </section>
@@ -227,10 +256,15 @@ export default function EnvironmentCompliancePage() {
             Waterbodies in the screening box
           </h2>
           {wfdQuery.isLoading ? (
-            <p className="mt-5 text-sm text-muted-foreground">
-              Loading current EPA classifications…
-            </p>
-          ) : wfdQuery.data?.status === "live" && waterbodies.length ? (
+            <output
+              className="mt-5 block animate-pulse"
+              aria-label="Loading nearby EPA waterbody classifications"
+            >
+              <span className="block h-10 rounded bg-muted" />
+              <span className="mt-2 block h-16 rounded bg-muted" />
+              <span className="mt-2 block h-16 rounded bg-muted" />
+            </output>
+          ) : !wfdUnavailable && waterbodies.length ? (
             <>
               <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 border-y border-border py-3 text-xs">
                 {statusCounts.map(([status, count]) => (
@@ -250,7 +284,8 @@ export default function EnvironmentCompliancePage() {
                         {item.name}
                       </p>
                       <p className="truncate text-xs text-muted-foreground">
-                        {item.kind} · {item.id}
+                        {item.kind} ·{" "}
+                        {formatPublishedReference(item.id, "Code")}
                       </p>
                     </div>
                     <p
@@ -274,12 +309,22 @@ export default function EnvironmentCompliancePage() {
                 </p>
               ) : null}
             </>
-          ) : (
+          ) : wfdUnavailable ? (
             <div className="mt-5 flex gap-3 border-l-2 border-destructive py-2 pl-4 text-sm text-muted-foreground">
               <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
               <p>
                 EPA classifications are unavailable. No status or zero value has
                 been substituted.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-5 border-l-2 border-border py-2 pl-4 text-sm">
+              <p className="font-semibold">
+                No mapped waterbodies were returned in this screening box.
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                This is a valid empty nearby result, not evidence that no
+                waterbody or environmental constraint exists.
               </p>
             </div>
           )}
@@ -313,17 +358,31 @@ export default function EnvironmentCompliancePage() {
           <h2 className="font-editorial mt-1 text-3xl font-medium">
             Published stocking-rate layer
           </h2>
-          {nitratesQuery.data?.status === "live" ? (
+          {nitratesQuery.isLoading ? (
+            <output
+              className="mt-5 block animate-pulse"
+              aria-label="Loading DAFM nitrate screening labels"
+            >
+              <span className="block h-10 w-52 rounded bg-muted" />
+              <span className="mt-3 block h-4 w-full rounded bg-muted" />
+            </output>
+          ) : !nitratesUnavailable && nitratesQuery.data?.data ? (
             <>
               <div className="mt-5 flex flex-wrap gap-2">
-                {stockingRates.length ? (
-                  stockingRates.map((rate) => (
-                    <span
-                      key={rate}
+                {nitrateLabels.length ? (
+                  nitrateLabels.map((label) => (
+                    <div
+                      key={label.raw}
                       className="border border-warning/35 bg-warning/10 px-3 py-2 text-sm font-semibold"
                     >
-                      {rate}
-                    </span>
+                      <p>{label.rate}</p>
+                      <p className="mt-1 text-xs font-normal text-muted-foreground">
+                        {label.effective
+                          ? `Effective label: ${label.effective}`
+                          : "Effective month not published"}{" "}
+                        · raw: {label.raw}
+                      </p>
+                    </div>
                   ))
                 ) : (
                   <p className="text-sm text-muted-foreground">
@@ -337,10 +396,6 @@ export default function EnvironmentCompliancePage() {
                 derogation terms, stocking records, and adviser guidance.
               </p>
             </>
-          ) : nitratesQuery.isLoading ? (
-            <p className="mt-5 text-sm text-muted-foreground">
-              Loading the current DAFM layer…
-            </p>
           ) : (
             <p className="mt-5 border-l-2 border-destructive py-2 pl-4 text-sm text-muted-foreground">
               The DAFM screening layer is unavailable. No result has been
