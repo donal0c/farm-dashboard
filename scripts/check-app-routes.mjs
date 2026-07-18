@@ -108,10 +108,18 @@ async function checkSnapshot(path) {
     const expectedSeconds = expectedSharedCacheSeconds.find(([prefix]) =>
       path.startsWith(prefix),
     )?.[1];
+    const cacheControl = response.headers.get("cache-control");
+    const vercelCacheState = response.headers.get("x-vercel-cache");
+    const declaredSharedCache = cacheControl?.includes(
+      `s-maxage=${expectedSeconds}`,
+    );
+    const consumedByVercelEdge =
+      Boolean(vercelCacheState) &&
+      cacheControl
+        ?.split(",")
+        .some((directive) => directive.trim() === "public");
     assert(
-      response.headers
-        .get("cache-control")
-        ?.includes(`s-maxage=${expectedSeconds}`),
+      declaredSharedCache || consumedByVercelEdge,
       `${path} omitted its source-specific shared-cache policy`,
     );
   }

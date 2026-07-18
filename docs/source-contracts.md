@@ -35,7 +35,10 @@ source cache policy.
 
 Next/Vercel cache revalidation therefore supplies best-effort last-known-good
 behavior within a declared window. Durable cross-deployment persistence is not
-currently implemented.
+currently implemented. Vercel consumes the shared-cache directives at its edge;
+the public response may expose `cache-control: public`, `age`, and
+`x-vercel-cache` instead of echoing `s-maxage` and
+`stale-while-revalidate` back to the browser.
 
 Briefing heuristics are versioned in `lib/briefing/rules.ts`. The 25 mm rain and
 45 km/h gust values are conservative product/presentation heuristics, not
