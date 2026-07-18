@@ -8,6 +8,8 @@
     "check:routes": "node scripts/check-app-routes.mjs",
     "check:sources": "node scripts/check-source-contracts.mjs",
     "test": "node --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test \"tests/**/*.test.ts\"",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
     "start": "next start",
     "lint": "biome check .",
     "format": "biome format --write ."
@@ -32,7 +34,9 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@biomejs/biome": "^2.3.14",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^20",
     "@types/react": "^19",

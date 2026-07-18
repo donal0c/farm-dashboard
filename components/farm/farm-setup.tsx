@@ -6,7 +6,9 @@ import { useMemo, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 import MapView, { Marker } from "react-map-gl/maplibre";
 
+import { CoordinateFields } from "@/components/farm/coordinate-fields";
 import { Button } from "@/components/ui/button";
+import { isIrishCoordinate, type LatLng } from "@/lib/contracts/geo";
 import routingKeys from "@/lib/data/eircode-routing-keys.json";
 import { enterpriseOptions, weekFocusOptions } from "@/lib/farm-plan";
 import { farmMapColors, farmMapStyles } from "@/lib/map/style";
@@ -20,11 +22,6 @@ import { cn } from "@/lib/utils";
 type RoutingKey = {
   name: string;
   description: string;
-};
-
-type LatLng = {
-  latitude: number;
-  longitude: number;
 };
 
 const irelandCenter = { latitude: 53.42, longitude: -7.83 };
@@ -45,6 +42,7 @@ export function FarmSetup() {
     zoom: 6.2,
   });
   const [isLocating, setIsLocating] = useState(false);
+  const [geocodeError, setGeocodeError] = useState<string | null>(null);
   const enterprise = useUiStore((state) => state.enterprise);
   const weekFocus = useUiStore((state) => state.weekFocus);
   const setEnterprise = useUiStore((state) => state.setEnterprise);
@@ -63,19 +61,52 @@ export function FarmSetup() {
       .slice(0, 6);
   }, [query]);
 
+  const placePin = (location: LatLng, placedByUser: boolean) => {
+    setPin(location);
+    setHasPlacedPin(placedByUser);
+    setViewState((current) => ({
+      ...current,
+      ...location,
+      zoom: Math.max(current.zoom, 10.5),
+    }));
+  };
+
   const chooseArea = async (area: RoutingKey) => {
     setSelectedArea(area);
     setQuery(`${area.name} · ${area.description}`);
+    setGeocodeError(null);
     setIsLocating(true);
     try {
       const response = await fetch(
         `/api/data/geocode?q=${encodeURIComponent(area.description)}`,
       );
-      if (!response.ok) return;
-      const location = (await response.json()) as LatLng;
-      setPin(location);
-      setHasPlacedPin(false);
-      setViewState({ ...location, zoom: 10.5 });
+      if (!response.ok) {
+        throw new Error("The routing area could not be located.");
+      }
+      const payload = (await response.json()) as unknown;
+      if (
+        !payload ||
+        typeof payload !== "object" ||
+        !("latitude" in payload) ||
+        !("longitude" in payload)
+      ) {
+        throw new Error("The routing area returned an invalid location.");
+      }
+      const location = {
+        latitude: Number(payload.latitude),
+        longitude: Number(payload.longitude),
+      };
+      if (!isIrishCoordinate(location)) {
+        setGeocodeError(
+          "The routing service returned a point outside Ireland. Choose another area or enter the farm coordinates below.",
+        );
+        return;
+      }
+      placePin(location, false);
+    } catch {
+      setGeocodeError(
+        "We could not locate that routing area. Try again, choose another area, or enter the farm coordinates below.",
+      );
     } finally {
       setIsLocating(false);
     }
@@ -92,6 +123,7 @@ export function FarmSetup() {
         : null,
       precision: "manual-pin",
     });
+    requestAnimationFrame(() => window.scrollTo({ top: 0 }));
   };
 
   return (
@@ -104,9 +136,9 @@ export function FarmSetup() {
           Where is your farm?
         </h1>
         <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
-          Choose a routing area, then place the pin on the farm. The saved
-          profile stays in this browser; the point is sent to AgriView’s data
-          routes when you load nearby evidence.
+          Choose a routing area, then place the farm point with the map or
+          coordinates. The saved profile stays in this browser; the point is
+          sent to AgriView’s data routes when you load nearby evidence.
         </p>
       </div>
 
@@ -128,6 +160,7 @@ export function FarmSetup() {
                 onChange={(event) => {
                   setQuery(event.target.value);
                   setSelectedArea(null);
+                  setGeocodeError(null);
                   if (!hasPlacedPin) {
                     setPin(null);
                   }
@@ -161,16 +194,44 @@ export function FarmSetup() {
             </ul>
           ) : null}
 
+          {geocodeError ? (
+            <div
+              role="alert"
+              className="border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm"
+            >
+              <p className="font-semibold text-destructive">
+                Routing area unavailable
+              </p>
+              <p className="mt-1 leading-6 text-muted-foreground">
+                {geocodeError}
+              </p>
+              {selectedArea ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="mt-2 px-0 text-primary"
+                  onClick={() => void chooseArea(selectedArea)}
+                  disabled={isLocating}
+                >
+                  Try this area again
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="overflow-hidden rounded-md border border-border bg-card">
-            <div className="flex items-center justify-between border-b border-border px-3 py-2 text-xs text-muted-foreground">
+            <div
+              aria-live="polite"
+              className="flex items-center justify-between border-b border-border px-3 py-2 text-xs text-muted-foreground"
+            >
               <span>
                 {isLocating
                   ? "Finding the routing area…"
                   : pin && !hasPlacedPin
-                    ? "Approximate area centre — click the map to place your farm pin"
+                    ? "Approximate area centre — use the map or coordinates to place the farm point"
                     : hasPlacedPin
                       ? "Farm pin placed"
-                      : "Choose an area or place the pin manually"}
+                      : "Choose an area, click the map, or enter coordinates"}
               </span>
               {pin ? (
                 <span>
@@ -188,11 +249,13 @@ export function FarmSetup() {
                 {...viewState}
                 onMove={(event) => setViewState(event.viewState)}
                 onClick={(event) => {
-                  setPin({
-                    latitude: event.lngLat.lat,
-                    longitude: event.lngLat.lng,
-                  });
-                  setHasPlacedPin(true);
+                  placePin(
+                    {
+                      latitude: event.lngLat.lat,
+                      longitude: event.lngLat.lng,
+                    },
+                    true,
+                  );
                 }}
                 cursor="crosshair"
                 cooperativeGestures
@@ -213,6 +276,13 @@ export function FarmSetup() {
                   </Marker>
                 ) : null}
               </MapView>
+            </div>
+            <div className="border-t border-border p-4">
+              <CoordinateFields
+                idPrefix="farm-setup"
+                value={pin}
+                onApply={(location) => placePin(location, true)}
+              />
             </div>
           </div>
         </div>

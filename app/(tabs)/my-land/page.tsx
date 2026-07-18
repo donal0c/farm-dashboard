@@ -13,9 +13,10 @@ import {
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { CoordinateFields } from "@/components/farm/coordinate-fields";
 import { IrelandMap } from "@/components/map/ireland-map";
 import { Button } from "@/components/ui/button";
-import type { SourceSnapshot } from "@/lib/contracts/source-snapshot";
+import { fetchSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
 import {
   enterpriseLabels,
   enterpriseOptions,
@@ -58,32 +59,26 @@ export default function MyLandPage() {
   const point = pendingPin ?? farmLocation;
   const lpisQuery = useQuery({
     queryKey: ["lpis", point?.latitude, point?.longitude],
-    queryFn: async () => {
-      const response = await fetch(
+    queryFn: () =>
+      fetchSourceSnapshot<GeoJSON.FeatureCollection>(
         `/api/data/lpis?lat=${point?.latitude}&lng=${point?.longitude}&radius=0.08`,
-      );
-      return (await response.json()) as SourceSnapshot<GeoJSON.FeatureCollection>;
-    },
+      ),
     enabled: Boolean(point),
   });
   const nitratesQuery = useQuery({
     queryKey: ["nitrates", point?.latitude, point?.longitude],
-    queryFn: async () => {
-      const response = await fetch(
+    queryFn: () =>
+      fetchSourceSnapshot<GeoJSON.FeatureCollection>(
         `/api/data/nitrates?lat=${point?.latitude}&lng=${point?.longitude}&radius=0.2`,
-      );
-      return (await response.json()) as SourceSnapshot<GeoJSON.FeatureCollection>;
-    },
+      ),
     enabled: Boolean(point),
   });
   const capQuery = useQuery({
     queryKey: ["cap-summary", farmLocation?.county],
-    queryFn: async () => {
-      const response = await fetch(
+    queryFn: () =>
+      fetchSourceSnapshot<CapCountyAggregate>(
         `/api/data/cap-summary?county=${farmLocation?.county}`,
-      );
-      return (await response.json()) as SourceSnapshot<CapCountyAggregate>;
-    },
+      ),
     enabled: Boolean(farmLocation?.county),
   });
 
@@ -123,6 +118,12 @@ export default function MyLandPage() {
   const totalArea = parcels.reduce((sum, parcel) => sum + parcel.area, 0);
   const lpisFeatureLimitReached =
     (lpisQuery.data?.data?.features.length ?? 0) >= 500;
+  const lpisUnavailable =
+    lpisQuery.isError || lpisQuery.data?.status === "unavailable";
+  const nitratesUnavailable =
+    nitratesQuery.isError || nitratesQuery.data?.status === "unavailable";
+  const capUnavailable =
+    capQuery.isError || capQuery.data?.status === "unavailable";
   const stockingRates = Array.from(
     new Set(
       (nitratesQuery.data?.data?.features ?? [])
@@ -212,9 +213,11 @@ export default function MyLandPage() {
           <p className="mt-1 font-semibold">
             {nitratesQuery.isLoading
               ? "Loading"
-              : stockingRates.length
-                ? stockingRates.join(" · ")
-                : "No label returned"}
+              : nitratesUnavailable
+                ? "Temporarily unavailable"
+                : stockingRates.length
+                  ? stockingRates.join(" · ")
+                  : "No nearby label returned"}
           </p>
         </div>
         <div>
@@ -227,13 +230,13 @@ export default function MyLandPage() {
         <div>
           <p className="text-muted-foreground">LPIS source</p>
           <p className="mt-1 font-semibold">
-            {lpisQuery.data?.status === "live"
-              ? lpisFeatureLimitReached
-                ? `${parcels.length} unique · 500-feature limit`
-                : `${parcels.length} nearby parcels`
-              : lpisQuery.isLoading
-                ? "Loading"
-                : "Unavailable"}
+            {lpisQuery.isLoading
+              ? "Loading"
+              : lpisUnavailable
+                ? "Temporarily unavailable"
+                : lpisFeatureLimitReached
+                  ? `${parcels.length} unique · 500-feature limit`
+                  : `${parcels.length} nearby parcels`}
           </p>
         </div>
         <div>
@@ -268,23 +271,33 @@ export default function MyLandPage() {
         </div>
 
         {isEditingPin ? (
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-l-2 border-warning bg-warning/10 px-4 py-3 text-sm">
-            <p>
-              Click the map to place a candidate pin. Data will refresh around
-              it; save only when the point is right.
-            </p>
-            <div className="flex gap-2">
-              {pendingPin ? <Button onClick={savePin}>Save pin</Button> : null}
-              <Button
-                variant="ghost"
-                onClick={() => setPendingPin(null)}
-                disabled={!pendingPin}
-                className="gap-2"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Undo
-              </Button>
+          <div className="mt-5 grid gap-4 border-l-2 border-warning bg-warning/10 px-4 py-4 text-sm lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div>
+              <p>
+                Use the map or coordinates to place a candidate pin. Data will
+                refresh around it; save only when the point is right.
+              </p>
+              <div className="mt-3 flex gap-2">
+                {pendingPin ? (
+                  <Button onClick={savePin}>Save pin</Button>
+                ) : null}
+                <Button
+                  variant="ghost"
+                  onClick={() => setPendingPin(null)}
+                  disabled={!pendingPin}
+                  className="gap-2"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Undo
+                </Button>
+              </div>
             </div>
+            <CoordinateFields
+              idPrefix="farm-edit"
+              value={point}
+              actionLabel="Use as candidate"
+              onApply={setPendingPin}
+            />
           </div>
         ) : null}
 
@@ -328,6 +341,16 @@ export default function MyLandPage() {
               <p className="py-6 text-sm text-muted-foreground">
                 Loading current LPIS reference parcels…
               </p>
+            ) : lpisUnavailable ? (
+              <div className="py-6 text-sm">
+                <p className="font-semibold text-destructive">
+                  LPIS parcels are temporarily unavailable.
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  AgriView has not treated the failed request as an empty parcel
+                  result.
+                </p>
+              </div>
             ) : visibleParcels.length ? (
               visibleParcels.map((parcel) => (
                 <div
@@ -367,7 +390,15 @@ export default function MyLandPage() {
           <h2 className="font-editorial mt-1 text-3xl font-medium">
             CAP beneficiaries
           </h2>
-          {capQuery.data?.data ? (
+          {capQuery.isLoading ? (
+            <p className="mt-5 text-sm leading-6 text-muted-foreground">
+              Loading county context…
+            </p>
+          ) : capUnavailable ? (
+            <p className="mt-5 text-sm leading-6 text-muted-foreground">
+              CAP county context is temporarily unavailable.
+            </p>
+          ) : capQuery.data?.data ? (
             <>
               <p className="font-editorial mt-5 text-4xl font-medium">
                 {capQuery.data.data.beneficiaries.toLocaleString("en-IE")}
@@ -399,7 +430,7 @@ export default function MyLandPage() {
           ) : (
             <p className="mt-5 text-sm leading-6 text-muted-foreground">
               {farmLocation.county
-                ? "CAP county context is temporarily unavailable."
+                ? `No ${farmLocation.county} aggregate was present in the current published release.`
                 : "Choose a routing area in farm setup to add county context."}
             </p>
           )}

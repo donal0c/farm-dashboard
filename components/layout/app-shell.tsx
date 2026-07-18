@@ -17,6 +17,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { containTabFocus } from "@/lib/client/focus-management";
 import { useUiStore } from "@/lib/store/ui-store";
 import { cn } from "@/lib/utils";
 
@@ -121,14 +122,18 @@ function MobileMoreMenu() {
   useEffect(() => {
     if (!open) return;
     panelRef.current?.querySelector<HTMLAnchorElement>("a")?.focus();
-    const closeOnEscape = (event: KeyboardEvent) => {
+    const handleDialogKeys = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setOpen(false);
         triggerRef.current?.focus();
+        return;
+      }
+      if (panelRef.current) {
+        containTabFocus(event, panelRef.current);
       }
     };
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
+    document.addEventListener("keydown", handleDialogKeys);
+    return () => document.removeEventListener("keydown", handleDialogKeys);
   }, [open]);
 
   const close = () => setOpen(false);

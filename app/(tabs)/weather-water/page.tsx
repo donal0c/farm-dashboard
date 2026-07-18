@@ -210,7 +210,12 @@ export default function WeatherWaterPage() {
             Loading the current forecast…
           </p>
         ) : days.length ? (
-          <div className="mt-5 overflow-x-auto border-y border-border">
+          <section
+            className="mt-5 overflow-x-auto border-y border-border"
+            aria-label="Seven-day forecast details"
+            // biome-ignore lint/a11y/noNoninteractiveTabindex: Keyboard users need to reach and scroll this overflow region.
+            tabIndex={0}
+          >
             <div className="grid min-w-[760px] grid-cols-7">
               {days.map((day: ForecastDay, index: number) => {
                 const Icon = weatherIcon(day.weatherCode);
@@ -253,7 +258,7 @@ export default function WeatherWaterPage() {
                 );
               })}
             </div>
-          </div>
+          </section>
         ) : (
           <p className="mt-5 border-l-2 border-destructive py-2 pl-4 text-sm text-muted-foreground">
             The forecast source is unavailable. No values have been substituted.

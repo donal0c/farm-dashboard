@@ -21,6 +21,7 @@ function windiestDay(days: ForecastDay[]) {
 }
 
 function driestWindow(days: ForecastDay[]) {
+  if (days.length < 2) return null;
   const windows = days.slice(0, -1).map((day, index) => ({
     dates: [day.date, days[index + 1].date],
     rain: day.rainMm + days[index + 1].rainMm,
@@ -97,7 +98,19 @@ export function deriveWeeklyBrief({
     });
   }
 
-  if (totalRain >= 25) {
+  if (!dry) {
+    items.push({
+      id: "forecast-coverage",
+      priority: "check",
+      eyebrow: "Forecast coverage",
+      title: "Not enough forecast days for a work window",
+      summary: `Only ${days.length} usable forecast ${days.length === 1 ? "day was" : "days were"} returned.`,
+      detail:
+        "AgriView needs at least two adjacent usable days before it can compare field-work windows. Check the full forecast and try again later.",
+      evidenceId: "forecast-coverage",
+      relevantDates: days.map((day) => day.date),
+    });
+  } else if (totalRain >= 25) {
     items.push({
       id: "ground-access",
       priority: "act",
@@ -135,20 +148,22 @@ export function deriveWeeklyBrief({
     });
   }
 
-  items.push({
-    id: "wind-check",
-    priority: "check",
-    eyebrow: focus === "spraying" ? "Spray check" : "Wind check",
-    title:
-      windiest.windGustKph >= 45
-        ? `Strong gusts could constrain work on ${formatDay(windiest.date)}`
-        : `Wind is not the main weekly constraint`,
-    summary: `Peak modelled gusts reach ${windiest.windGustKph.toFixed(0)} km/h on ${formatDay(windiest.date)}.`,
-    detail:
-      "Forecast gusts are not field measurements. Check the latest local forecast and product rules immediately before weather-sensitive work.",
-    evidenceId: "forecast-wind",
-    relevantDates: [windiest.date],
-  });
+  if (days.length >= 2) {
+    items.push({
+      id: "wind-check",
+      priority: "check",
+      eyebrow: focus === "spraying" ? "Spray check" : "Wind check",
+      title:
+        windiest.windGustKph >= 45
+          ? `Strong gusts could constrain work on ${formatDay(windiest.date)}`
+          : `Wind is not the main weekly constraint`,
+      summary: `Peak modelled gusts reach ${windiest.windGustKph.toFixed(0)} km/h on ${formatDay(windiest.date)}.`,
+      detail:
+        "Forecast gusts are not field measurements. Check the latest local forecast and product rules immediately before weather-sensitive work.",
+      evidenceId: "forecast-wind",
+      relevantDates: [windiest.date],
+    });
+  }
 
   items.push({
     id: "compliance-check",
@@ -200,6 +215,21 @@ export function deriveWeeklyBrief({
             },
           ]
         : []),
+      ...(dry
+        ? []
+        : [
+            {
+              id: "forecast-coverage",
+              label: "Forecast coverage",
+              sourceLabel: forecast.source.label,
+              sourceUrl: forecast.source.url,
+              observedAt: forecast.observedAt,
+              scope: forecast.scope,
+              confidence: forecast.confidence,
+              explanation:
+                "AgriView requires at least two adjacent usable forecast days before comparing a work window.",
+            },
+          ]),
       {
         id: "forecast-rain",
         label: "Seven-day rainfall",

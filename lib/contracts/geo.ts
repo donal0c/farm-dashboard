@@ -3,7 +3,7 @@ export type LatLng = {
   longitude: number;
 };
 
-const IRELAND_BOUNDS = {
+export const IRELAND_BOUNDS = {
   minLatitude: 51.2,
   maxLatitude: 55.7,
   minLongitude: -11,

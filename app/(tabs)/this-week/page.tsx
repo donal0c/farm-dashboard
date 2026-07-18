@@ -11,13 +11,14 @@ import {
   ShieldCheck,
   Sun,
 } from "lucide-react";
+import Link from "next/link";
 import { useMemo } from "react";
 
 import { EvidencePanel } from "@/components/briefing/evidence-panel";
 import { FarmSetup } from "@/components/farm/farm-setup";
 import { deriveWeeklyBrief } from "@/lib/briefing/derive-weekly-brief";
 import type { BriefItem } from "@/lib/briefing/types";
-import type { SourceSnapshot } from "@/lib/contracts/source-snapshot";
+import { fetchSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
 import { enterpriseLabels, weekFocusLabels } from "@/lib/farm-plan";
 import type { MetWarning } from "@/lib/sources/met-warnings";
 import type { FarmForecast, ForecastDay } from "@/lib/sources/open-meteo";
@@ -35,6 +36,19 @@ function weatherIcon(code: number) {
   if (code <= 1) return Sun;
   if (code >= 51) return CloudRain;
   return CloudSun;
+}
+
+function weatherDescription(code: number) {
+  if (code <= 1) return "Clear or mainly clear";
+  if (code <= 3) return "Cloudy";
+  if (code <= 48) return "Fog";
+  if (code <= 57) return "Drizzle or freezing drizzle";
+  if (code <= 67) return "Rain or freezing rain";
+  if (code <= 77) return "Snow";
+  if (code <= 82) return "Rain showers";
+  if (code <= 86) return "Snow showers";
+  if (code >= 95) return "Thunderstorm";
+  return "Unclassified weather conditions";
 }
 
 const priorityStyle = {
@@ -60,8 +74,11 @@ const priorityStyle = {
 
 function BriefRow({ item, lead = false }: { item: BriefItem; lead?: boolean }) {
   const setEvidenceId = useUiStore((state) => state.setEvidenceId);
+  const evidenceId = useUiStore((state) => state.evidenceId);
   const style = priorityStyle[item.priority];
   const Icon = style.icon;
+  const evidenceOpen = evidenceId === item.evidenceId;
+  const triggerId = `evidence-trigger-${item.evidenceId}`;
 
   return (
     <article
@@ -99,9 +116,15 @@ function BriefRow({ item, lead = false }: { item: BriefItem; lead?: boolean }) {
         </p>
       ) : null}
       <button
+        id={triggerId}
         type="button"
         onClick={() => setEvidenceId(item.evidenceId)}
-        className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary hover:underline"
+        aria-expanded={evidenceOpen}
+        aria-controls={evidenceOpen ? "evidence-panel" : undefined}
+        className={cn(
+          "mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary hover:underline",
+          evidenceOpen && "underline underline-offset-4",
+        )}
       >
         See evidence and rule
         <ArrowRight className="h-4 w-4" />
@@ -134,30 +157,17 @@ export default function ThisWeekPage() {
       farmLocation?.latitude,
       farmLocation?.longitude,
     ],
-    queryFn: async () => {
-      const response = await fetch(
+    queryFn: () =>
+      fetchSourceSnapshot<FarmForecast>(
         `/api/data/forecast?lat=${farmLocation?.latitude}&lng=${farmLocation?.longitude}`,
-      );
-      const snapshot = (await response.json()) as SourceSnapshot<FarmForecast>;
-      if (!snapshot || !("status" in snapshot)) {
-        throw new Error("Forecast response did not match the source contract.");
-      }
-      return snapshot;
-    },
+      ),
     enabled: Boolean(farmLocation),
     staleTime: 30 * 60 * 1000,
     retry: 1,
   });
   const warningsQuery = useQuery({
     queryKey: ["met-warnings"],
-    queryFn: async () => {
-      const response = await fetch("/api/data/met/warnings");
-      const snapshot = (await response.json()) as SourceSnapshot<MetWarning[]>;
-      if (!snapshot || !("status" in snapshot)) {
-        throw new Error("Warning response did not match the source contract.");
-      }
-      return snapshot;
-    },
+    queryFn: () => fetchSourceSnapshot<MetWarning[]>("/api/data/met/warnings"),
     staleTime: 10 * 60 * 1000,
     retry: 1,
   });
@@ -178,6 +188,11 @@ export default function ThisWeekPage() {
   const evidence =
     brief?.evidence.find((item) => item.id === evidenceId) ?? null;
   const days = forecastQuery.data?.data?.days ?? [];
+  const forecastUnavailable =
+    forecastQuery.isError || forecastQuery.data?.status === "unavailable";
+  const warningsUnavailable =
+    warningsQuery.isError || warningsQuery.data?.status === "unavailable";
+  const forecastEmpty = Boolean(forecastQuery.data?.data) && days.length === 0;
 
   if (!hasHydrated) {
     return <LoadingBrief />;
@@ -217,7 +232,7 @@ export default function ThisWeekPage() {
                 )}
                 aria-hidden="true"
               />
-              {forecastQuery.isFetching
+              {forecastQuery.isFetching || warningsQuery.isFetching
                 ? "Refreshing"
                 : forecastQuery.data?.status === "live" &&
                     warningsQuery.data?.status === "live"
@@ -241,9 +256,7 @@ export default function ThisWeekPage() {
           <div className="py-8">
             <LoadingBrief />
           </div>
-        ) : forecastQuery.isError ||
-          !forecastQuery.data?.data ||
-          !brief?.items.length ? (
+        ) : forecastUnavailable || !forecastQuery.data?.data ? (
           <section className="my-8 border-l-2 border-destructive py-4 pl-5">
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-destructive">
               Forecast unavailable
@@ -264,8 +277,57 @@ export default function ThisWeekPage() {
               Try again
             </button>
           </section>
+        ) : forecastEmpty || !brief?.items.length ? (
+          <section className="my-8 border-l-2 border-warning py-4 pl-5">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-warning">
+              Forecast incomplete
+            </p>
+            <h2 className="font-editorial mt-2 text-3xl font-medium">
+              No usable forecast days were returned.
+            </h2>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
+              The source responded, but it did not contain enough current data
+              to build a weekly brief. No empty values have been treated as
+              weather observations.
+            </p>
+            <button
+              type="button"
+              onClick={() => void forecastQuery.refetch()}
+              className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Check again
+            </button>
+          </section>
         ) : (
           <>
+            {warningsUnavailable ? (
+              <section
+                aria-live="polite"
+                className="mt-7 border-l-2 border-warning bg-warning/10 px-5 py-4"
+              >
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-warning">
+                  Warning source unavailable
+                </p>
+                <h2 className="font-editorial mt-2 text-2xl font-medium">
+                  Weather warnings could not be checked.
+                </h2>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+                  Met Éireann did not return a usable current snapshot. Do not
+                  interpret the missing warning row as confirmation that no
+                  warning is active.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void warningsQuery.refetch()}
+                  className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Check warnings again
+                </button>
+              </section>
+            ) : null}
+
             <section
               className="mt-7 border-y border-border"
               aria-label="Priorities"
@@ -285,14 +347,19 @@ export default function ThisWeekPage() {
                     Seven days at the pin
                   </h2>
                 </div>
-                <a
+                <Link
                   href="/weather-water"
                   className="hidden min-h-11 items-center text-sm font-semibold text-primary sm:flex"
                 >
                   Full conditions
-                </a>
+                </Link>
               </div>
-              <div className="mt-5 grid grid-cols-7 overflow-x-auto border-y border-border">
+              <section
+                className="mt-5 grid grid-cols-7 overflow-x-auto border-y border-border"
+                aria-label="Seven-day forecast"
+                // biome-ignore lint/a11y/noNoninteractiveTabindex: Keyboard users need to reach and scroll this overflow region.
+                tabIndex={0}
+              >
                 {days.map((day: ForecastDay, index: number) => {
                   const Icon = weatherIcon(day.weatherCode);
                   return (
@@ -307,6 +374,9 @@ export default function ThisWeekPage() {
                         className="mx-auto mt-3 h-5 w-5 text-primary"
                         aria-hidden="true"
                       />
+                      <span className="sr-only">
+                        {weatherDescription(day.weatherCode)}
+                      </span>
                       <p className="mt-2 text-sm font-semibold">
                         {day.temperatureMaxC.toFixed(0)}°
                       </p>
@@ -316,7 +386,7 @@ export default function ThisWeekPage() {
                     </div>
                   );
                 })}
-              </div>
+              </section>
             </section>
 
             <footer className="flex items-start gap-3 border-t border-border py-6 text-sm leading-6 text-muted-foreground">
@@ -334,7 +404,12 @@ export default function ThisWeekPage() {
         )}
       </div>
 
-      {evidence ? <EvidencePanel evidence={evidence} /> : null}
+      {evidence ? (
+        <EvidencePanel
+          evidence={evidence}
+          returnFocusId={`evidence-trigger-${evidence.id}`}
+        />
+      ) : null}
     </div>
   );
 }

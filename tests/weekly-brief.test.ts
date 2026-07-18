@@ -26,6 +26,65 @@ function forecast(rain: number[], gusts: number[]) {
 }
 
 describe("deterministic weekly briefing", () => {
+  it("returns no priorities when the forecast has no usable days", () => {
+    const brief = deriveWeeklyBrief({
+      forecast: {
+        data: {
+          latitude: 53.4,
+          longitude: -7.8,
+          timezone: "Europe/Dublin",
+          days: [],
+        },
+        source: {
+          id: "forecast",
+          label: "Forecast",
+          url: "https://example.com",
+        },
+        scope: "farm",
+        status: "live",
+        observedAt: null,
+        fetchedAt: "2026-07-18T08:00:00.000Z",
+        staleAfter: "2026-07-18T08:45:00.000Z",
+        warning: null,
+        confidence: "estimate",
+      },
+      enterprise: "beef",
+      focus: "grazing",
+    });
+
+    assert.deepEqual(brief.items, []);
+    assert.deepEqual(brief.evidence, []);
+  });
+
+  it("does not invent a two-day window from a one-day forecast", () => {
+    const brief = deriveWeeklyBrief({
+      forecast: forecast([4], [25]),
+      enterprise: "beef",
+      focus: "grazing",
+    });
+
+    assert.deepEqual(
+      brief.items.map((item) => item.id),
+      ["forecast-coverage", "compliance-check"],
+    );
+    assert.match(brief.items[0].title, /Not enough forecast days/);
+    assert.ok(brief.evidence.some((item) => item.id === "forecast-coverage"));
+  });
+
+  it("allows a work-window comparison with two usable days", () => {
+    const brief = deriveWeeklyBrief({
+      forecast: forecast([1, 2], [20, 25]),
+      enterprise: "beef",
+      focus: "grazing",
+    });
+
+    assert.equal(brief.items[0].id, "field-window");
+    assert.deepEqual(brief.items[0].relevantDates, [
+      "2026-07-18",
+      "2026-07-19",
+    ]);
+  });
+
   it("raises access risk when seven-day rain crosses the rule threshold", () => {
     const brief = deriveWeeklyBrief({
       forecast: forecast([3, 4, 5, 8, 4, 2, 1], [20, 22, 24, 40, 30, 22, 18]),
