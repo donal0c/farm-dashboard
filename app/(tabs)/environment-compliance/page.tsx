@@ -14,6 +14,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 
 import { fetchValidatedSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
+import { sourceQueryStaleTime } from "@/lib/client/source-query-policy";
 import { featureCollectionContract } from "@/lib/contracts/geojson";
 import {
   formatPublishedReference,
@@ -67,20 +68,17 @@ export default function EnvironmentCompliancePage() {
         wfdStatusDataSchema,
       ),
     enabled: Boolean(farmLocation),
+    staleTime: sourceQueryStaleTime.epaWfd,
   });
   const nitratesQuery = useQuery({
-    queryKey: [
-      "nitrates",
-      farmLocation?.latitude,
-      farmLocation?.longitude,
-      "environment",
-    ],
+    queryKey: ["nitrates", farmLocation?.latitude, farmLocation?.longitude],
     queryFn: () =>
       fetchValidatedSourceSnapshot<GeoJSON.FeatureCollection>(
         `/api/data/nitrates?lat=${farmLocation?.latitude}&lng=${farmLocation?.longitude}&radius=0.2`,
         featureCollectionContract,
       ),
     enabled: Boolean(farmLocation),
+    staleTime: sourceQueryStaleTime.nitrates,
   });
 
   const waterbodies = useMemo(() => {
@@ -261,8 +259,13 @@ export default function EnvironmentCompliancePage() {
               aria-label="Loading nearby EPA waterbody classifications"
             >
               <span className="block h-10 rounded bg-muted" />
-              <span className="mt-2 block h-16 rounded bg-muted" />
-              <span className="mt-2 block h-16 rounded bg-muted" />
+              {Array.from({ length: 5 }, (_, index) => (
+                <span
+                  // biome-ignore lint/suspicious/noArrayIndexKey: Static loading placeholders have no identity.
+                  key={index}
+                  className="mt-2 block h-16 rounded bg-muted"
+                />
+              ))}
             </output>
           ) : !wfdUnavailable && waterbodies.length ? (
             <>
@@ -274,7 +277,7 @@ export default function EnvironmentCompliancePage() {
                 ))}
               </div>
               <div className="border-b border-border">
-                {waterbodies.slice(0, 10).map((item) => (
+                {waterbodies.slice(0, 5).map((item) => (
                   <article
                     key={item.id}
                     className="grid gap-2 border-b border-border py-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_110px_120px]"
@@ -302,9 +305,9 @@ export default function EnvironmentCompliancePage() {
                   </article>
                 ))}
               </div>
-              {waterbodies.length > 10 ? (
+              {waterbodies.length > 5 ? (
                 <p className="mt-3 text-xs text-muted-foreground">
-                  Showing the 10 most cautionary of {waterbodies.length} unique
+                  Showing the 5 most cautionary of {waterbodies.length} unique
                   waterbodies returned.
                 </p>
               ) : null}
@@ -365,6 +368,7 @@ export default function EnvironmentCompliancePage() {
             >
               <span className="block h-10 w-52 rounded bg-muted" />
               <span className="mt-3 block h-4 w-full rounded bg-muted" />
+              <span className="mt-2 block h-4 w-4/5 rounded bg-muted" />
             </output>
           ) : !nitratesUnavailable && nitratesQuery.data?.data ? (
             <>

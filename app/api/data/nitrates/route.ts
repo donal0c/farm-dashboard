@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { boundingBox, isIrishCoordinate } from "@/lib/contracts/geo";
 import { unavailableSnapshot } from "@/lib/contracts/source-snapshot";
 import { fetchValidated } from "@/lib/server/fetch-validated";
+import { sourceCacheControl } from "@/lib/server/source-cache-policy";
 import {
   NITRATES_COLLECTIONS_URL,
   nitratesCatalogueSchema,
@@ -57,7 +58,9 @@ export async function GET(request: Request) {
       maxAttempts: 2,
       init: { next: { revalidate: 24 * 60 * 60 } },
     });
-    return NextResponse.json(normalizeNitratesSnapshot(data, collection));
+    return NextResponse.json(normalizeNitratesSnapshot(data, collection), {
+      headers: { "Cache-Control": sourceCacheControl.nitrates },
+    });
   } catch (error) {
     return NextResponse.json(
       unavailableSnapshot<GeoJSON.FeatureCollection>({

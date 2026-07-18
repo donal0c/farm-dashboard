@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { boundingBox, isIrishCoordinate } from "@/lib/contracts/geo";
 import { unavailableSnapshot } from "@/lib/contracts/source-snapshot";
 import { fetchValidated } from "@/lib/server/fetch-validated";
+import { sourceCacheControl } from "@/lib/server/source-cache-policy";
 import {
   LPIS_SOURCE,
   lpisPayloadSchema,
@@ -47,8 +48,7 @@ export async function GET(request: Request) {
     });
     return NextResponse.json(normalizeLpisCollection(data), {
       headers: {
-        "Cache-Control":
-          "public, s-maxage=86400, stale-while-revalidate=604800",
+        "Cache-Control": sourceCacheControl.lpis,
       },
     });
   } catch (error) {

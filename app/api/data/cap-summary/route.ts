@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { unavailableSnapshot } from "@/lib/contracts/source-snapshot";
+import { sourceCacheControl } from "@/lib/server/source-cache-policy";
 import {
   CAP_SOURCE,
   type CapCountyAggregate,
@@ -20,14 +21,17 @@ export async function GET(request: Request) {
     const snapshot = await getCapCountySnapshot();
     const aggregate =
       snapshot.data?.find((item) => item.county === county) ?? null;
-    return NextResponse.json({
-      ...snapshot,
-      data: aggregate,
-      scope: "county",
-      warning: aggregate
-        ? snapshot.warning
-        : `No ${county} aggregate was present in the ${CAP_SOURCE.label} release.`,
-    });
+    return NextResponse.json(
+      {
+        ...snapshot,
+        data: aggregate,
+        scope: "county",
+        warning: aggregate
+          ? snapshot.warning
+          : `No ${county} aggregate was present in the ${CAP_SOURCE.label} release.`,
+      },
+      { headers: { "Cache-Control": sourceCacheControl.cap } },
+    );
   } catch (error) {
     return NextResponse.json(
       unavailableSnapshot<CapCountyAggregate>({

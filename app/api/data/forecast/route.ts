@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { assertIrishCoordinate, isIrishCoordinate } from "@/lib/contracts/geo";
 import { unavailableSnapshot } from "@/lib/contracts/source-snapshot";
+import { sourceCacheControl } from "@/lib/server/source-cache-policy";
 import {
   type FarmForecast,
   fetchOpenMeteoForecast,
@@ -22,7 +23,12 @@ export async function GET(request: Request) {
 
   try {
     assertIrishCoordinate({ latitude, longitude });
-    return NextResponse.json(await fetchOpenMeteoForecast(latitude, longitude));
+    return NextResponse.json(
+      await fetchOpenMeteoForecast(latitude, longitude),
+      {
+        headers: { "Cache-Control": sourceCacheControl.forecast },
+      },
+    );
   } catch (error) {
     return NextResponse.json(
       unavailableSnapshot<FarmForecast>({

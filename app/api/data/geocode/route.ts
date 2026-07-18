@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { unavailableSnapshot } from "@/lib/contracts/source-snapshot";
 import { routingAreaSearchQuery } from "@/lib/ireland/counties";
 import { fetchValidated } from "@/lib/server/fetch-validated";
+import { sourceCacheControl } from "@/lib/server/source-cache-policy";
 import {
   GEOCODE_SOURCE,
   nominatimResultsSchema,
@@ -37,7 +38,9 @@ export async function GET(request: Request) {
         next: { revalidate: 24 * 60 * 60 },
       },
     });
-    return NextResponse.json(normalizeGeocodeResult(data, q));
+    return NextResponse.json(normalizeGeocodeResult(data, q), {
+      headers: { "Cache-Control": sourceCacheControl.geocode },
+    });
   } catch (error) {
     return NextResponse.json(
       unavailableSnapshot({

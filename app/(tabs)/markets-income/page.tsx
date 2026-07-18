@@ -12,6 +12,7 @@ import { useMemo } from "react";
 
 import { ThemedChart } from "@/components/charts/themed-chart";
 import { fetchValidatedSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
+import { sourceQueryStaleTime } from "@/lib/client/source-query-policy";
 import {
   decodeJsonStat,
   type JsonStatDataset,
@@ -58,12 +59,12 @@ export default function MarketsIncomePage() {
   const outputQuery = useQuery({
     queryKey: ["cso", "AEA01"],
     queryFn: () => fetchCso("AEA01"),
-    staleTime: 6 * 60 * 60 * 1000,
+    staleTime: sourceQueryStaleTime.cso,
   });
   const priceQuery = useQuery({
     queryKey: ["cso", "AHM05"],
     queryFn: () => fetchCso("AHM05"),
-    staleTime: 6 * 60 * 60 * 1000,
+    staleTime: sourceQueryStaleTime.cso,
     enabled: enterprise !== "mixed",
   });
 
@@ -294,7 +295,15 @@ export default function MarketsIncomePage() {
             <ExternalLink className="h-4 w-4" />
           </a>
         </div>
-        {output.length ? (
+        {outputQuery.isLoading ? (
+          <output
+            className="mt-6 block animate-pulse"
+            aria-label="Loading annual output chart"
+          >
+            <span className="block h-[340px] rounded bg-muted" />
+            <span className="mt-4 block h-16 rounded bg-muted" />
+          </output>
+        ) : output.length ? (
           <div className="mt-6">
             <ThemedChart
               style={{ height: 340 }}
@@ -377,7 +386,15 @@ export default function MarketsIncomePage() {
           <h2 className="font-editorial mt-1 text-3xl font-medium">
             Monthly output price direction
           </h2>
-          {price.length ? (
+          {priceQuery.isLoading ? (
+            <output
+              className="mt-6 block animate-pulse"
+              aria-label="Loading monthly price-index chart"
+            >
+              <span className="block h-[300px] rounded bg-muted" />
+              <span className="mt-4 block h-16 rounded bg-muted" />
+            </output>
+          ) : price.length ? (
             <div className="mt-6">
               <ThemedChart
                 style={{ height: 300 }}

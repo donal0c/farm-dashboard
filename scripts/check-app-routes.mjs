@@ -33,6 +33,18 @@ const validSnapshotStatuses = new Set([
   "unavailable",
 ]);
 
+const expectedSharedCacheSeconds = [
+  ["/api/data/forecast", 1800],
+  ["/api/data/met/warnings", 600],
+  ["/api/data/opw/nearby", 900],
+  ["/api/data/lpis", 86400],
+  ["/api/data/nitrates", 86400],
+  ["/api/data/epa/wfd-status", 86400],
+  ["/api/data/cap-summary", 86400],
+  ["/api/data/geocode", 86400],
+  ["/api/data/cso/", 21600],
+];
+
 function routeUrl(path) {
   return new URL(path, baseUrl).toString();
 }
@@ -90,6 +102,17 @@ async function checkSnapshot(path) {
     assert(
       payload.data === null && typeof payload.warning === "string",
       `${path} did not expose an honest unavailable state`,
+    );
+  }
+  if (payload.status !== "unavailable") {
+    const expectedSeconds = expectedSharedCacheSeconds.find(([prefix]) =>
+      path.startsWith(prefix),
+    )?.[1];
+    assert(
+      response.headers
+        .get("cache-control")
+        ?.includes(`s-maxage=${expectedSeconds}`),
+      `${path} omitted its source-specific shared-cache policy`,
     );
   }
   if (path.includes("/geocode")) {

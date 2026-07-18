@@ -215,6 +215,7 @@ async function installApiMocks(
     warningData?: unknown[];
     warningStatus?: "live" | "partial";
     forecastDelayMs?: number;
+    apiDelayMs?: number;
     opw?: OpwState;
     environment?: SupportingState;
     markets?: SupportingState;
@@ -228,6 +229,9 @@ async function installApiMocks(
   const markets = options.markets ?? "empty";
   await page.route("**/api/data/**", async (route) => {
     const url = new URL(route.request().url());
+    if (options.apiDelayMs) {
+      await new Promise((resolve) => setTimeout(resolve, options.apiDelayMs));
+    }
 
     if (url.pathname === "/api/data/forecast") {
       if (options.forecastDelayMs) {
@@ -1157,6 +1161,112 @@ test("contains focus in the Mobile More dialog", async ({ page }) => {
   await expect(closeButton).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "More" })).toBeFocused();
+});
+
+test("reuses fresh source evidence across related client-side workspaces", async ({
+  page,
+}) => {
+  const requestCounts = new Map<string, number>();
+  page.on("request", (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (pathname.startsWith("/api/data/")) {
+      requestCounts.set(pathname, (requestCounts.get(pathname) ?? 0) + 1);
+    }
+  });
+
+  await setSavedFarm(page);
+  await installApiMocks(page, {
+    environment: "live",
+    land: "live",
+    opw: "live",
+  });
+  await page.goto("/this-week");
+  await expect(
+    page.getByRole("heading", { name: "What deserves your attention" }),
+  ).toBeVisible();
+
+  await page
+    .getByRole("navigation", { name: "Primary navigation" })
+    .getByRole("link", { name: "Conditions" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "A working weather window" }),
+  ).toBeVisible();
+
+  await page
+    .getByRole("navigation", { name: "Primary navigation" })
+    .getByRole("link", { name: "Land" })
+    .click();
+  await expect(page.getByText("3 nearby parcels")).toBeVisible();
+
+  await page
+    .getByRole("navigation", { name: "Evidence navigation" })
+    .getByRole("link", { name: "Environment" })
+    .click();
+  await expect(page.getByText("River Corrib")).toBeVisible();
+
+  expect(requestCounts.get("/api/data/forecast")).toBe(1);
+  expect(requestCounts.get("/api/data/met/warnings")).toBe(1);
+  expect(requestCounts.get("/api/data/nitrates")).toBe(1);
+});
+
+test("keeps asynchronous evidence loading transitions layout-stable", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const measuredWindow = window as typeof window & { __agriViewCls: number };
+    measuredWindow.__agriViewCls = 0;
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        const shift = entry as PerformanceEntry & {
+          hadRecentInput: boolean;
+          value: number;
+        };
+        if (!shift.hadRecentInput) measuredWindow.__agriViewCls += shift.value;
+      }
+    }).observe({ type: "layout-shift", buffered: true });
+  });
+  await setSavedFarm(page);
+  await installApiMocks(page, {
+    apiDelayMs: 700,
+    environment: "live",
+    land: "live",
+    markets: "live",
+    opw: "live",
+  });
+
+  const cases = [
+    {
+      route: "/my-land",
+      settled: () => page.getByText("3 nearby parcels"),
+    },
+    {
+      route: "/weather-water",
+      settled: () =>
+        page.getByRole("region", {
+          name: "7-day rain and temperature comparison",
+        }),
+    },
+    {
+      route: "/markets-income",
+      settled: () => page.getByText("€13.1bn").first(),
+    },
+    {
+      route: "/environment-compliance",
+      settled: () => page.getByText("River Corrib"),
+    },
+  ] as const;
+
+  for (const { route, settled } of cases) {
+    await page.goto(route);
+    await expect(page.locator("h1")).toBeVisible();
+    await expect(settled()).toBeVisible();
+    await page.waitForTimeout(100);
+    const cls = await page.evaluate(
+      () => (window as typeof window & { __agriViewCls: number }).__agriViewCls,
+    );
+    expect(cls, `${route} layout shift`).toBeLessThan(0.02);
+  }
 });
 
 test("preserves full-page scrolling and navigation geometry across routes and viewports", async ({

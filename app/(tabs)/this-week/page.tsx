@@ -16,6 +16,7 @@ import { FarmSetup } from "@/components/farm/farm-setup";
 import { deriveWeeklyBrief } from "@/lib/briefing/derive-weekly-brief";
 import type { BriefItem } from "@/lib/briefing/types";
 import { fetchValidatedSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
+import { sourceQueryStaleTime } from "@/lib/client/source-query-policy";
 import type { SourceStatus } from "@/lib/contracts/source-snapshot";
 import { enterpriseLabels, weekFocusLabels } from "@/lib/farm-plan";
 import { type MetWarning, metWarningsSchema } from "@/lib/sources/met-warnings";
@@ -319,7 +320,7 @@ export default function ThisWeekPage() {
         farmForecastSchema,
       ),
     enabled: Boolean(farmLocation),
-    staleTime: 30 * 60 * 1000,
+    staleTime: sourceQueryStaleTime.forecast,
     retry: 1,
   });
   const warningsQuery = useQuery({
@@ -329,7 +330,7 @@ export default function ThisWeekPage() {
         "/api/data/met/warnings",
         metWarningsSchema,
       ),
-    staleTime: 10 * 60 * 1000,
+    staleTime: sourceQueryStaleTime.metWarnings,
     retry: 1,
   });
 

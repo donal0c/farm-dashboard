@@ -18,6 +18,7 @@ import { CoordinateFields } from "@/components/farm/coordinate-fields";
 import { IrelandMap } from "@/components/map/ireland-map";
 import { Button } from "@/components/ui/button";
 import { fetchValidatedSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
+import { sourceQueryStaleTime } from "@/lib/client/source-query-policy";
 import {
   type CapCountyAggregate,
   capCountyAggregateSchema,
@@ -81,6 +82,7 @@ export default function MyLandPage() {
         featureCollectionContract,
       ),
     enabled: Boolean(point),
+    staleTime: sourceQueryStaleTime.lpis,
   });
   const nitratesQuery = useQuery({
     queryKey: ["nitrates", point?.latitude, point?.longitude],
@@ -90,6 +92,7 @@ export default function MyLandPage() {
         featureCollectionContract,
       ),
     enabled: Boolean(point),
+    staleTime: sourceQueryStaleTime.nitrates,
   });
   const capQuery = useQuery({
     queryKey: ["cap-summary", farmLocation?.county],
@@ -99,6 +102,7 @@ export default function MyLandPage() {
         capCountyAggregateSchema,
       ),
     enabled: Boolean(farmLocation?.county),
+    staleTime: sourceQueryStaleTime.cap,
   });
 
   const parcels = useMemo(() => {
@@ -229,7 +233,7 @@ export default function MyLandPage() {
         </p>
       </header>
 
-      <section className="grid gap-3 border-b border-border py-4 text-xs sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid min-h-[105px] gap-3 border-b border-border py-4 text-xs sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <p className="text-muted-foreground">Nearby nitrate band</p>
           <div className="mt-1 font-semibold">
@@ -393,12 +397,16 @@ export default function MyLandPage() {
             <div className="mt-4 border-y border-border">
               {lpisQuery.isLoading ? (
                 <output
-                  className="block animate-pulse py-5"
+                  className="block animate-pulse"
                   aria-label="Loading nearby parcel register"
                 >
-                  <span className="block h-12 rounded bg-muted" />
-                  <span className="mt-2 block h-12 rounded bg-muted" />
-                  <span className="mt-2 block h-12 rounded bg-muted" />
+                  {Array.from({ length: 8 }, (_, index) => (
+                    <span
+                      // biome-ignore lint/suspicious/noArrayIndexKey: Static loading placeholders have no identity.
+                      key={index}
+                      className="block h-16 border-b border-border bg-muted last:border-b-0"
+                    />
+                  ))}
                 </output>
               ) : lpisUnavailable ? (
                 <div className="py-6 text-sm">

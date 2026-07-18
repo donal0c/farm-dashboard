@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { unavailableSnapshot } from "@/lib/contracts/source-snapshot";
 import { fetchValidated } from "@/lib/server/fetch-validated";
+import { sourceCacheControl } from "@/lib/server/source-cache-policy";
 import {
   MET_WARNINGS_SOURCE,
   type MetWarning,
@@ -21,7 +22,9 @@ export async function GET() {
         init: { next: { revalidate: 10 * 60 } },
       },
     );
-    return NextResponse.json(normalizeMetWarnings(data));
+    return NextResponse.json(normalizeMetWarnings(data), {
+      headers: { "Cache-Control": sourceCacheControl.metWarnings },
+    });
   } catch (error) {
     return NextResponse.json(
       unavailableSnapshot<MetWarning[]>({

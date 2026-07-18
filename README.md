@@ -85,7 +85,7 @@ npm audit
 repairing external state. The same report-only check runs weekly and on demand
 in `.github/workflows/source-contracts.yml`.
 
-`npm run check:routes` exercises the six product pages, every decision-bearing
+`npm run check:routes` exercises the seven product pages, every decision-bearing
 API route, and an invalid-coordinate guard against `http://localhost:3000`.
 Set `ROUTE_CHECK_BASE_URL` to check another unprotected release candidate.
 

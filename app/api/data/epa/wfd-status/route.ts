@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { boundingBox, isIrishCoordinate } from "@/lib/contracts/geo";
 import { unavailableSnapshot } from "@/lib/contracts/source-snapshot";
 import { fetchValidated } from "@/lib/server/fetch-validated";
+import { sourceCacheControl } from "@/lib/server/source-cache-policy";
 import {
   EPA_WFD_SOURCE,
   normalizeWfdSnapshot,
@@ -89,6 +90,7 @@ export async function GET(request: Request) {
         rivers: riverResult.data,
         groundwater: groundResult.data,
       }),
+      { headers: { "Cache-Control": sourceCacheControl.epaWfd } },
     );
   } catch (error) {
     return NextResponse.json(

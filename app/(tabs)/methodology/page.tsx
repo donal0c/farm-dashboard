@@ -58,6 +58,18 @@ export default function MethodologyPage() {
             interface reports that state instead of substituting sample values.
           </p>
         </section>
+        <section>
+          <h2 className="font-editorial text-3xl font-medium text-foreground">
+            Last-known-good has a time limit
+          </h2>
+          <p className="mt-3">
+            A previously validated response may be reused only within its
+            source-specific cache window. If its freshness time has elapsed,
+            AgriView labels it stale. If no valid cached response is available
+            and the source fails, the result is unavailable—never silently
+            replaced.
+          </p>
+        </section>
       </div>
     </article>
   );

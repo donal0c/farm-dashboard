@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logSourceFailure } from "@/lib/server/source-observability";
 
 const TRANSPARENT_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/axXl9sAAAAASUVORK5CYII=",
@@ -15,6 +16,7 @@ function getParam(
 }
 
 export async function GET(request: Request) {
+  const startedAt = performance.now();
   const { searchParams } = new URL(request.url);
   const bbox = getParam(
     searchParams,
@@ -46,6 +48,12 @@ export async function GET(request: Request) {
     });
 
     if (!response.ok) {
+      logSourceFailure({
+        sourceId: "epa-soil-wms",
+        failureClass: "http",
+        status: response.status,
+        durationMs: performance.now() - startedAt,
+      });
       return new NextResponse(TRANSPARENT_PNG, {
         status: 200,
         headers: {
@@ -64,6 +72,12 @@ export async function GET(request: Request) {
       },
     });
   } catch {
+    logSourceFailure({
+      sourceId: "epa-soil-wms",
+      failureClass: "transport",
+      status: null,
+      durationMs: performance.now() - startedAt,
+    });
     return new NextResponse(TRANSPARENT_PNG, {
       status: 200,
       headers: {

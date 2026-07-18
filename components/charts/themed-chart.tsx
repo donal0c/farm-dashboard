@@ -1,8 +1,30 @@
 "use client";
 
-import ReactECharts, { type EChartsOption } from "echarts-for-react";
+import { LineChart } from "echarts/charts";
+import {
+  AriaComponent,
+  DataZoomComponent,
+  GridComponent,
+  TooltipComponent,
+} from "echarts/components";
+import * as echarts from "echarts/core";
+import { SVGRenderer } from "echarts/renderers";
+import type { EChartsOption } from "echarts-for-react";
+import EChartsReactCore from "echarts-for-react/lib/core";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+import { farmTheme, farmThemeDark } from "@/lib/charts/theme";
+
+echarts.use([
+  AriaComponent,
+  DataZoomComponent,
+  GridComponent,
+  LineChart,
+  SVGRenderer,
+  TooltipComponent,
+]);
+echarts.registerTheme("farm", farmTheme);
+echarts.registerTheme("farm-dark", farmThemeDark);
 
 interface ThemedChartProps {
   option: EChartsOption;
@@ -45,7 +67,8 @@ export function ThemedChart({
   const theme = resolvedTheme === "dark" ? "farm-dark" : "farm";
 
   return (
-    <ReactECharts
+    <EChartsReactCore
+      echarts={echarts}
       option={option}
       theme={theme}
       style={style}

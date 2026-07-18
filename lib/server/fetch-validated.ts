@@ -1,4 +1,5 @@
 import type { ZodType } from "zod";
+import { logSourceFailure } from "./source-observability.ts";
 
 export type UpstreamErrorKind =
   | "timeout"
@@ -150,6 +151,7 @@ export async function fetchValidated<T>(
   input: RequestInfo | URL,
   options: FetchValidatedOptions<T>,
 ) {
+  const startedAt = performance.now();
   const {
     maxAttempts = 1,
     timeoutMs = 8_000,
@@ -172,7 +174,15 @@ export async function fetchValidated<T>(
     } catch (error) {
       if (!(error instanceof UpstreamError)) throw error;
       lastError = error;
-      if (!error.retryable || attempt === maxAttempts) throw error;
+      if (!error.retryable || attempt === maxAttempts) {
+        logSourceFailure({
+          sourceId: error.sourceId,
+          failureClass: error.kind,
+          status: error.status,
+          durationMs: performance.now() - startedAt,
+        });
+        throw error;
+      }
       await sleep(retryDelayMs(error.retryAfterMs, random));
     }
   }

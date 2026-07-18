@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { isIrishCoordinate } from "@/lib/contracts/geo";
 import { unavailableSnapshot } from "@/lib/contracts/source-snapshot";
 import { fetchValidated } from "@/lib/server/fetch-validated";
+import { sourceCacheControl } from "@/lib/server/source-cache-policy";
 import {
   type NearbyOpwReading,
   normalizeNearbyOpw,
@@ -37,6 +38,7 @@ export async function GET(request: Request) {
         latitude,
         longitude,
       }),
+      { headers: { "Cache-Control": sourceCacheControl.opw } },
     );
   } catch (error) {
     return NextResponse.json(

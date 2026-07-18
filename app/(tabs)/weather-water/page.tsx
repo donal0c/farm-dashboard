@@ -15,6 +15,7 @@ import Link from "next/link";
 
 import { ForecastComparison } from "@/components/conditions/forecast-comparison";
 import { fetchValidatedSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
+import { sourceQueryStaleTime } from "@/lib/client/source-query-policy";
 import { type MetWarning, metWarningsSchema } from "@/lib/sources/met-warnings";
 import {
   type FarmForecast,
@@ -59,6 +60,7 @@ export default function WeatherWaterPage() {
         farmForecastSchema,
       ),
     enabled: Boolean(farmLocation),
+    staleTime: sourceQueryStaleTime.forecast,
   });
   const warningsQuery = useQuery({
     queryKey: ["met-warnings"],
@@ -67,6 +69,7 @@ export default function WeatherWaterPage() {
         "/api/data/met/warnings",
         metWarningsSchema,
       ),
+    staleTime: sourceQueryStaleTime.metWarnings,
   });
   const opwQuery = useQuery({
     queryKey: ["opw-nearby", farmLocation?.latitude, farmLocation?.longitude],
@@ -76,6 +79,7 @@ export default function WeatherWaterPage() {
         nearbyOpwReadingsSchema,
       ),
     enabled: Boolean(farmLocation),
+    staleTime: sourceQueryStaleTime.opw,
   });
 
   if (!hasHydrated) return <ConditionsPlaceholder />;
@@ -177,7 +181,17 @@ export default function WeatherWaterPage() {
         </div>
       </section>
 
-      {warnings.length ? (
+      {warningsQuery.isLoading ? (
+        <section className="border-b border-border py-5">
+          <output
+            className="block animate-pulse"
+            aria-label="Loading official weather notices"
+          >
+            <span className="block h-5 w-44 rounded bg-muted" />
+            <span className="mt-3 block h-12 rounded bg-muted" />
+          </output>
+        </section>
+      ) : warnings.length ? (
         <section className="border-b border-border py-7">
           {warningsPartial ? (
             <div className="mb-5 flex gap-2 border-l-2 border-warning bg-warning/10 px-4 py-3 text-sm">
@@ -195,7 +209,7 @@ export default function WeatherWaterPage() {
           {warnings.map((warning) => (
             <article
               key={warning.id}
-              className="mt-4 border-l-2 border-warning bg-warning/10 px-5 py-5"
+              className="mt-4 border-l-2 border-warning bg-warning/10 px-5 py-4"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-bold uppercase tracking-[0.12em] text-warning">
@@ -211,16 +225,16 @@ export default function WeatherWaterPage() {
                   <ExternalLink className="h-4 w-4" />
                 </a>
               </div>
-              <h2 className="font-editorial mt-2 text-3xl font-medium">
+              <h2 className="font-editorial mt-2 text-2xl font-medium">
                 {warning.headline}
               </h2>
-              <p className="mt-3 max-w-3xl whitespace-pre-line text-sm leading-6 text-muted-foreground">
+              <p className="mt-3 line-clamp-2 max-w-3xl whitespace-pre-line text-sm leading-6 text-muted-foreground">
                 {warning.description}
               </p>
             </article>
           ))}
         </section>
-      ) : warningsQuery.isLoading ? null : (
+      ) : (
         <section className="flex items-start gap-3 border-b border-border py-5 text-sm">
           <ShieldAlert
             className={`mt-0.5 h-5 w-5 shrink-0 ${
@@ -263,7 +277,7 @@ export default function WeatherWaterPage() {
             aria-label="Loading rain and temperature forecast"
           >
             <span className="block h-8 rounded bg-muted" />
-            <span className="mt-3 block h-52 rounded bg-muted" />
+            <span className="mt-3 block h-[330px] rounded bg-muted" />
           </output>
         ) : days.length ? (
           <>

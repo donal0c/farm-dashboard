@@ -5,6 +5,7 @@ import {
 } from "@/lib/contracts/source-snapshot";
 import { jsonStatDatasetSchema } from "@/lib/cso/jsonstat";
 import { fetchValidated } from "@/lib/server/fetch-validated";
+import { sourceCacheControl } from "@/lib/server/source-cache-policy";
 
 const ALLOWED = new Set(["AEA01", "AHM05"]);
 
@@ -52,6 +53,7 @@ export async function GET(
           "CSO series are national and lagged. They are context, not a farm price or income estimate.",
         confidence: "authoritative",
       }),
+      { headers: { "Cache-Control": sourceCacheControl.cso } },
     );
   } catch (error) {
     return NextResponse.json(

@@ -25,9 +25,17 @@ Last reconciled: 18 July 2026.
 - `stale`: last-known-good data whose freshness window has elapsed.
 - `unavailable`: no usable data; `data` is null and the failure is explicit.
 
-There is no `fallback` status and no sample-data path. Next/Vercel cache
-revalidation supplies best-effort last-known-good behavior; durable
-cross-deployment persistence is not currently implemented.
+There is no `fallback` status and no sample-data path. Successful route
+responses carry source-specific shared-cache and bounded stale-while-revalidate
+windows: 10 minutes for warnings, 15 minutes for OPW, 30 minutes for forecasts,
+6 hours for CSO, and 24 hours for slow-changing spatial, CAP, and geocode
+evidence. A cached response served after its `staleAfter` timestamp is relabelled
+`stale` at the client boundary. An `unavailable` 502 is not given the successful
+source cache policy.
+
+Next/Vercel cache revalidation therefore supplies best-effort last-known-good
+behavior within a declared window. Durable cross-deployment persistence is not
+currently implemented.
 
 Briefing heuristics are versioned in `lib/briefing/rules.ts`. The 25 mm rain and
 45 km/h gust values are conservative product/presentation heuristics, not
@@ -53,6 +61,10 @@ The checker validates ten live upstream contracts:
 It writes no state and does not auto-repair a failure. GitHub Actions runs it
 weekly and on demand. A failure should be investigated at the ingestion
 boundary before any UI workaround is considered.
+
+Final upstream failures emit one structured server log with source id, failure
+class, HTTP status when present, and duration. Precise coordinates, query URLs,
+and payload values are deliberately excluded.
 
 For the application boundary, run a production build locally and then:
 
