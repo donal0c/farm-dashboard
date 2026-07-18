@@ -38,7 +38,5 @@ export const farmMapColors = {
   pin: "#315f45",
   parcelFill: "#70a36d",
   parcelLine: "#315f45",
-  nitrateFill: "#cf913b",
-  nitrateLine: "#9a5e25",
   water: "#367b95",
 };

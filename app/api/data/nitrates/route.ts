@@ -53,6 +53,8 @@ export async function GET(request: Request) {
     url.searchParams.set("f", "json");
     url.searchParams.set("bbox", bbox.join(","));
     url.searchParams.set("limit", "500");
+    url.searchParams.set("skipGeometry", "true");
+    url.searchParams.set("properties", "STK_RATE,SDO_GID");
 
     const response = await fetch(url, {
       next: { revalidate: 24 * 60 * 60 },
@@ -78,7 +80,7 @@ export async function GET(request: Request) {
         fetchedAt.getTime() + 24 * 60 * 60 * 1000,
       ).toISOString(),
       warning:
-        "This is a national screening layer. Confirm the current holding and field rules in official DAFM guidance.",
+        "This compact response reports labels from intersecting map features without redistributing their large geometries. Confirm current holding and field rules in official DAFM guidance.",
       confidence: "authoritative",
     });
   } catch (error) {

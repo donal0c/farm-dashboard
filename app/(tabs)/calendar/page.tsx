@@ -7,7 +7,7 @@ import {
 
 import { complianceDates2026 } from "@/lib/compliance/rules";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 
 function daysUntil(date: string, now: Date) {
   const deadline = new Date(`${date}T23:59:59+01:00`);

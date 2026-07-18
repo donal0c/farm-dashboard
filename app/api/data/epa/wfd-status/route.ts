@@ -15,7 +15,11 @@ const source = {
   url: "https://gis.epa.ie/geoserver/wfs",
 };
 
-function buildWfsUrl(layer: string, bbox: readonly number[]) {
+function buildWfsUrl(
+  layer: string,
+  bbox: readonly number[],
+  properties: string[],
+) {
   const url = new URL(source.url);
   url.searchParams.set("service", "WFS");
   url.searchParams.set("version", "1.1.0");
@@ -25,6 +29,7 @@ function buildWfsUrl(layer: string, bbox: readonly number[]) {
   url.searchParams.set("srsName", "EPSG:4326");
   url.searchParams.set("bbox", `${bbox.join(",")},EPSG:4326`);
   url.searchParams.set("maxFeatures", "300");
+  url.searchParams.set("propertyName", properties.join(","));
   return url;
 }
 
@@ -32,7 +37,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const latitude = Number.parseFloat(searchParams.get("lat") ?? "");
   const longitude = Number.parseFloat(searchParams.get("lng") ?? "");
-  const radius = Number.parseFloat(searchParams.get("radius") ?? "1");
+  const radius = Number.parseFloat(searchParams.get("radius") ?? "0.1");
 
   if (!isIrishCoordinate({ latitude, longitude })) {
     return NextResponse.json(
@@ -53,14 +58,30 @@ export async function GET(request: Request) {
 
   try {
     const [riverResponse, groundResponse] = await Promise.all([
-      fetch(buildWfsUrl("EPA:WFD_RWBStatus_20192024", bbox), {
-        next: { revalidate: 24 * 60 * 60 },
-        signal: AbortSignal.timeout(10_000),
-      }),
-      fetch(buildWfsUrl("EPA:WFD_GWBStatus_20192024", bbox), {
-        next: { revalidate: 24 * 60 * 60 },
-        signal: AbortSignal.timeout(10_000),
-      }),
+      fetch(
+        buildWfsUrl("EPA:WFD_RWBStatus_20192024", bbox, [
+          "European_Code",
+          "Name",
+          "Status",
+          "Period_for_WFD_Status",
+        ]),
+        {
+          next: { revalidate: 24 * 60 * 60 },
+          signal: AbortSignal.timeout(10_000),
+        },
+      ),
+      fetch(
+        buildWfsUrl("EPA:WFD_GWBStatus_20192024", bbox, [
+          "European_Code",
+          "Name",
+          "Overall_GW_Status",
+          "Period_for_WFD_Status",
+        ]),
+        {
+          next: { revalidate: 24 * 60 * 60 },
+          signal: AbortSignal.timeout(10_000),
+        },
+      ),
     ]);
     if (!riverResponse.ok || !groundResponse.ok) {
       throw new Error(

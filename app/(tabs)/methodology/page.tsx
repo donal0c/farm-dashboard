@@ -19,12 +19,32 @@ export default function MethodologyPage() {
         </section>
         <section>
           <h2 className="font-editorial text-3xl font-medium text-foreground">
+            The pin is the working location
+          </h2>
+          <p className="mt-3">
+            Routing-key search only centres an approximate area. The point you
+            save manually is used for nearby requests and remains in this
+            browser; it is not an official property or Eircode lookup.
+          </p>
+        </section>
+        <section>
+          <h2 className="font-editorial text-3xl font-medium text-foreground">
             Evidence keeps its scope
           </h2>
           <p className="mt-3">
             A point forecast is an estimate at the saved coordinate. Nearby,
             county, regional, and national evidence is labelled as such and is
             never described as field-specific.
+          </p>
+        </section>
+        <section>
+          <h2 className="font-editorial text-3xl font-medium text-foreground">
+            Compliance stays a verification task
+          </h2>
+          <p className="mt-3">
+            Scheme dates and environmental layers are prompts to check current
+            terms, records, correspondence, and professional guidance. They do
+            not decide whether an action is permitted.
           </p>
         </section>
         <section>

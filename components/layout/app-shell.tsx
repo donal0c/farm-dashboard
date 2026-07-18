@@ -107,6 +107,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-dvh bg-background md:grid md:grid-cols-[216px_minmax(0,1fr)]">
+      <a
+        href="#main-content"
+        className="fixed left-3 top-3 z-50 -translate-y-20 bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-transform focus:translate-y-0"
+      >
+        Skip to main content
+      </a>
       <aside className="paper-grain hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex md:h-dvh md:flex-col">
         <header className="flex h-20 items-center gap-3 border-b border-sidebar-border px-5">
           <span className="text-sidebar-primary">
@@ -167,7 +173,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <ThemeToggle />
         </header>
 
-        <main className="mx-auto min-h-dvh w-full max-w-[1120px] px-4 pb-28 pt-7 sm:px-7 md:px-10 md:pb-16 md:pt-10">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="mx-auto min-h-dvh w-full max-w-[1120px] px-4 pb-28 pt-7 sm:px-7 md:px-10 md:pb-16 md:pt-10"
+        >
           {children}
         </main>
       </div>
@@ -205,7 +215,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
         >
           <ChartNoAxesCombined className="h-5 w-5" />
-          More
+          Markets
         </Link>
       </nav>
     </div>

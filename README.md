@@ -1,109 +1,103 @@
-# Farm Dashboard
+# AgriView
 
-Farm Dashboard is an agricultural intelligence web app for Irish farm operations.
-It combines map-based farm context, market and income analytics, weather and water indicators, and environmental/compliance views into a single interface.
+AgriView is a saved-farm weekly action brief for Irish farmers. It turns a
+small set of public weather, land, water, scheme, and market sources into three
+traceable priorities, then keeps the underlying evidence available in focused
+drill-downs.
 
-## What the app does
+The product is intentionally a screening and planning aid. It does not claim
+field ownership, official Eircode precision, scheme eligibility, agronomic
+permission, or legal compliance.
 
-- Lets users locate farm context using Irish routing keys / Eircodes.
-- Shows CAP, LPIS, nitrates, weather, and market data through charts and map overlays.
-- Provides a tabbed workflow for day-to-day farm planning and monitoring.
-- Includes a feature-gated GenUI sidebar scaffold (disabled by default).
+## Product workflow
 
-## Main tabs
+1. Choose an approximate routing area and place a manual farm pin.
+2. Select the main enterprise and the week’s focus.
+3. Start on **This week**: one lead priority and two supporting checks.
+4. Open the evidence disclosure to inspect scope, confidence, observation time,
+   source, and the deterministic rule.
+5. Drill into **Land**, **Conditions**, **Calendar**, **Markets**, or
+   **Environment** only when the decision needs more context.
 
-### 1) My Land
+The farm profile is stored in the current browser with Zustand. There is no
+account, database, analytics SDK, advertising tracker, or AI model.
 
-- Eircode/routing-key search and farm-area location.
-- Interactive map (pan/zoom/click) with:
-  - LPIS parcel overlay
-  - EPA soil WMS overlay
-  - Nitrates overlay
-- CAP county summary cards and parcel preview.
+## What is live
 
-### 2) Markets & Income
+- Open-Meteo seven-day point forecast at the saved coordinate.
+- Met Éireann active official warnings.
+- DAFM LPIS 2024 nearby reference parcels.
+- DAFM current nitrates/derogation screening collection.
+- DAFM CAP 2025 county aggregates, parsed and cached server-side.
+- EPA Water Framework Directive 2019–2024 nearby classifications.
+- OPW current water-level sensor readings near the pin.
+- CSO AEA01 agricultural output and AHM05 output price indices.
+- A small, manually verified 2026 DAFM deadline watchlist.
 
-- CSO + DAFM market/income charts and KPI cards.
-- Region and year filters.
-- Core analytics load by default.
-- Extended analytics are loaded on demand to keep the page responsive.
+Unavailable or structurally invalid data stays unavailable. AgriView does not
+replace it with demo, sample, or synthetic values.
 
-### 3) Weather & Water
+## Architecture
 
-- Weather signals and ag-report data views.
-- Water-level related indicators from OPW-proxied data routes.
+- Next.js App Router, React, and TypeScript.
+- Tailwind CSS with a locally owned responsive design system.
+- MapLibre and `react-map-gl` for the saved-farm reference map.
+- ECharts for the two national market series.
+- TanStack Query for client request state and Zustand for the local farm
+  profile.
+- Route handlers as the public-data trust boundary.
+- Source adapters normalize provenance, scope, freshness, confidence, units,
+  and degraded state before values reach decision UI.
 
-### 4) Environment & Compliance
+See [docs/architecture.md](docs/architecture.md) and
+[docs/source-contracts.md](docs/source-contracts.md).
 
-- Environmental/compliance indicators and biodiversity-related views.
+## Local development
 
-## GenUI status
-
-- GenUI sidebar scaffold exists but is behind a feature flag.
-- Default: hidden.
-- Enable with: `NEXT_PUBLIC_ENABLE_GENUI=true`.
-
-## Tech stack
-
-- Framework: Next.js 16 + React 19 + TypeScript
-- Styling/UI: Tailwind CSS v4 + shadcn/ui + Tremor
-- Charts: ECharts
-- Maps: MapLibre GL + react-map-gl
-- State/Data: TanStack Query + Zustand
-- API routes: Next.js Route Handlers (+ Hono/tRPC scaffolding)
-- Tooling: Biome
-
-## Project structure (high level)
-
-- `app/(tabs)/...` tab pages and UI screens
-- `app/api/data/...` data proxy endpoints
-- `components/...` reusable UI, map, and layout components
-- `lib/...` utilities, data helpers, JSON-stat decode helpers
-- `docs/reference/...` source validation notes
-- `docs/research/...` research artifacts
-
-## Local setup
-
-1. Install dependencies:
+Requires Node.js 22 or a current supported Node.js release.
 
 ```bash
-npm install
-```
-
-2. Configure environment:
-
-```bash
-cp .env.example .env.local
-```
-
-3. Start dev server:
-
-```bash
+npm ci
 npm run dev
 ```
 
-4. Open:
+Open [http://localhost:3000](http://localhost:3000).
 
-- [http://localhost:3000](http://localhost:3000)
+No environment variables are required. Public sources are accessed from
+server-side route handlers where CORS, payload size, caching, or normalization
+requires it.
 
-## Environment variables
-
-From `.env.example`:
-
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `NEXT_PUBLIC_ENABLE_GENUI` (optional, default `false`)
-
-## Scripts
+## Quality gates
 
 ```bash
-npm run dev
 npm run lint
-npm run format
+npx tsc --noEmit
+npm test
+npm run check:sources
 npm run build
+npm audit
 ```
 
-## Notes and limitations
+`npm run check:sources` validates ten upstream contracts without writing or
+repairing external state. The same report-only check runs weekly and on demand
+in `.github/workflows/source-contracts.yml`.
 
-- Exact full-Eircode geocoding precision depends on geocoding provider coverage/quality.
-- Some upstream public datasets can be slow or intermittently unavailable; API proxy routes include fallbacks where possible.
+## Important limitations
+
+- A routing key is an approximate search aid. The manual pin is the saved
+  working location; neither is an official property or Eircode lookup.
+- LPIS, nitrate, waterbody, and soil layers near the pin do not prove that a
+  feature belongs to the holding.
+- Forecasts are model estimates. OPW readings belong to their sensor locations.
+- CAP figures are county-level published context, not a payment or entitlement
+  estimate.
+- CSO series are national and lagged. They are not a farm price, margin, or
+  trading recommendation.
+- The calendar is a curated watchlist, not a universal compliance system.
+- Biodiversity data is deliberately omitted until a maintained,
+  redistributable source and a recurring farmer decision are both established.
+
+## Deployment
+
+The repository is linked to Vercel. Use preview deployments for verification;
+promoting a release candidate to production is a deliberate release action.

@@ -1,4 +1,0 @@
-{
-  "name": "farm-dashboard",
-  "installCommand": "npm install --legacy-peer-deps"
-}

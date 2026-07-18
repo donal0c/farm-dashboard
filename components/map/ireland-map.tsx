@@ -12,9 +12,7 @@ type IrelandMapProps = {
   center: LatLng;
   onPickLocation: (location: LatLng) => void;
   lpisGeoJson?: GeoJSON.FeatureCollection;
-  nitratesGeoJson?: GeoJSON.FeatureCollection;
   showSoilLayer: boolean;
-  showNitrateLayer: boolean;
 };
 
 const soilTiles =
@@ -24,9 +22,7 @@ export function IrelandMap({
   center,
   onPickLocation,
   lpisGeoJson,
-  nitratesGeoJson,
   showSoilLayer,
-  showNitrateLayer,
 }: IrelandMapProps) {
   const [viewState, setViewState] = useState({
     longitude: center.longitude,
@@ -102,27 +98,6 @@ export function IrelandMap({
               type="line"
               paint={{
                 "line-color": farmMapColors.parcelLine,
-                "line-width": 1.5,
-              }}
-            />
-          </Source>
-        ) : null}
-
-        {showNitrateLayer && nitratesGeoJson ? (
-          <Source id="nitrates" type="geojson" data={nitratesGeoJson}>
-            <Layer
-              id="nitrate-fill"
-              type="fill"
-              paint={{
-                "fill-color": farmMapColors.nitrateFill,
-                "fill-opacity": 0.2,
-              }}
-            />
-            <Layer
-              id="nitrate-outline"
-              type="line"
-              paint={{
-                "line-color": farmMapColors.nitrateLine,
                 "line-width": 1.5,
               }}
             />

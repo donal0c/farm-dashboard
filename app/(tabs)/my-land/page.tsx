@@ -49,7 +49,6 @@ export default function MyLandPage() {
   const hasHydrated = useUiStore((state) => state.hasHydrated);
   const [pendingPin, setPendingPin] = useState<LatLng | null>(null);
   const [isEditingPin, setIsEditingPin] = useState(false);
-  const [showNitrates, setShowNitrates] = useState(true);
   const [showSoil, setShowSoil] = useState(false);
 
   const point = pendingPin ?? farmLocation;
@@ -118,6 +117,16 @@ export default function MyLandPage() {
   }, [lpisQuery.data]);
   const visibleParcels = parcels.slice(0, 8);
   const totalArea = parcels.reduce((sum, parcel) => sum + parcel.area, 0);
+  const stockingRates = Array.from(
+    new Set(
+      (nitratesQuery.data?.data?.features ?? [])
+        .map((feature) => feature.properties?.STK_RATE)
+        .filter(
+          (value): value is string =>
+            typeof value === "string" && Boolean(value.trim()),
+        ),
+    ),
+  ).sort();
 
   if (!hasHydrated) {
     return (
@@ -186,13 +195,22 @@ export default function MyLandPage() {
           </Button>
         </div>
         <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">
-          LPIS and nitrate features are reference layers near the point you
-          saved. They do not prove ownership, eligibility, or the boundary of
-          your holding.
+          LPIS parcels are reference features near the point you saved. They do
+          not prove ownership, eligibility, or the boundary of your holding.
         </p>
       </header>
 
-      <section className="grid gap-3 border-b border-border py-4 text-xs sm:grid-cols-3">
+      <section className="grid gap-3 border-b border-border py-4 text-xs sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+          <p className="text-muted-foreground">Nitrate screening</p>
+          <p className="mt-1 font-semibold">
+            {nitratesQuery.isLoading
+              ? "Loading"
+              : stockingRates.length
+                ? stockingRates.join(" · ")
+                : "No label returned"}
+          </p>
+        </div>
         <div>
           <p className="text-muted-foreground">Farm area</p>
           <p className="mt-1 font-semibold">
@@ -225,19 +243,11 @@ export default function MyLandPage() {
               Reference map
             </p>
             <h2 className="font-editorial mt-1 text-3xl font-medium">
-              Parcels and screening layers
+              Parcels and soil context
             </h2>
           </div>
           <fieldset className="flex flex-wrap gap-2">
             <legend className="sr-only">Map layers</legend>
-            <Button
-              variant={showNitrates ? "default" : "outline"}
-              onClick={() => setShowNitrates((value) => !value)}
-              className="gap-2"
-            >
-              {showNitrates ? <Check className="h-4 w-4" /> : null}
-              Nitrates 2025
-            </Button>
             <Button
               variant={showSoil ? "default" : "outline"}
               onClick={() => setShowSoil((value) => !value)}
@@ -277,17 +287,15 @@ export default function MyLandPage() {
               if (isEditingPin) setPendingPin(location);
             }}
             lpisGeoJson={lpisQuery.data?.data ?? undefined}
-            nitratesGeoJson={nitratesQuery.data?.data ?? undefined}
             showSoilLayer={showSoil}
-            showNitrateLayer={showNitrates}
           />
         </div>
         <div className="mt-3 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
           <Layers3 className="mt-0.5 h-4 w-4 shrink-0" />
           <p>
-            Green: DAFM LPIS 2024 reference parcels. Amber: current DAFM
-            nitrates/derogation screening layer. Soil is an optional EPA WMS
-            overlay.
+            Green: DAFM LPIS 2024 reference parcels. Soil is an optional EPA WMS
+            overlay. Nitrate labels are screened without sending the source’s
+            multi-megabyte national polygons to the browser.
           </p>
         </div>
       </section>

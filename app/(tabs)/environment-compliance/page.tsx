@@ -1,492 +1,399 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Droplets, Fish } from "lucide-react";
-import { useMemo, useState } from "react";
-import "maplibre-gl/dist/maplibre-gl.css";
-import MapView, { Layer, Source } from "react-map-gl/maplibre";
-import { ThemedChart } from "@/components/charts/themed-chart";
-import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { ChartState, DecisionPanel } from "@/components/ui/data-status";
-import { KpiCard } from "@/components/ui/kpi-card";
+  ArrowRight,
+  CircleAlert,
+  Droplets,
+  ExternalLink,
+  MapPin,
+  ShieldCheck,
+  Waves,
+} from "lucide-react";
+import Link from "next/link";
+import { useMemo } from "react";
+
 import type { SourceSnapshot } from "@/lib/contracts/source-snapshot";
-import {
-  decodeJsonStat,
-  type JsonStatDataset,
-  parseYear,
-} from "@/lib/cso/jsonstat";
-import { complianceActionForEnterprise } from "@/lib/farm-plan";
 import { useUiStore } from "@/lib/store/ui-store";
+import { cn } from "@/lib/utils";
 
-type LatLng = { latitude: number; longitude: number };
+type WfdStatusData = {
+  rivers: GeoJSON.FeatureCollection;
+  groundwater: GeoJSON.FeatureCollection;
+};
 
-function statusColorExpression(property: string) {
-  return [
-    "match",
-    ["get", property],
-    "High",
-    "#166534",
-    "Good",
-    "#22c55e",
-    "Moderate",
-    "#eab308",
-    "Poor",
-    "#f97316",
-    "Bad",
-    "#dc2626",
-    "#6b7280",
-  ];
+type Waterbody = {
+  id: string;
+  name: string;
+  kind: "River" | "Groundwater";
+  status: string;
+  period: string;
+};
+
+function formatCheckedAt(value: string | undefined) {
+  if (!value) return "Not checked";
+  return new Intl.DateTimeFormat("en-IE", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function baseStatus(status: string) {
+  return ["High", "Good", "Moderate", "Poor", "Bad"].find((value) =>
+    status.startsWith(value),
+  );
+}
+
+function statusTone(status: string) {
+  const category = baseStatus(status);
+  if (category === "High" || category === "Good") return "text-success";
+  if (category === "Moderate") return "text-warning";
+  if (category === "Poor" || category === "Bad") return "text-destructive";
+  return "text-muted-foreground";
 }
 
 export default function EnvironmentCompliancePage() {
-  const [location, setLocation] = useState<LatLng>({
-    latitude: 53.5,
-    longitude: -7.5,
-  });
-  const [showNitrate, setShowNitrate] = useState(true);
-  const [showNitrateSusc, setShowNitrateSusc] = useState(false);
-  const [showPhosphorusSusc, setShowPhosphorusSusc] = useState(false);
-  const [showAgPressure, setShowAgPressure] = useState(false);
-  const [showCorine, setShowCorine] = useState(false);
-  const [showCorineChange, setShowCorineChange] = useState(false);
-  const enterprise = useUiStore((state) => state.enterprise);
-  const weekFocus = useUiStore((state) => state.weekFocus);
+  const farmLocation = useUiStore((state) => state.farmLocation);
+  const hasHydrated = useUiStore((state) => state.hasHydrated);
 
   const wfdQuery = useQuery({
-    queryKey: ["wfd-status", location.latitude, location.longitude],
+    queryKey: ["wfd-status", farmLocation?.latitude, farmLocation?.longitude],
     queryFn: async () => {
       const response = await fetch(
-        `/api/data/epa/wfd-status?lat=${location.latitude}&lng=${location.longitude}&radius=1.2`,
+        `/api/data/epa/wfd-status?lat=${farmLocation?.latitude}&lng=${farmLocation?.longitude}&radius=0.1`,
       );
-      if (!response.ok) throw new Error("WFD status failed");
-      return response.json() as Promise<
-        SourceSnapshot<{
-          rivers: GeoJSON.FeatureCollection;
-          groundwater: GeoJSON.FeatureCollection;
-        }>
-      >;
+      return (await response.json()) as SourceSnapshot<WfdStatusData>;
     },
+    enabled: Boolean(farmLocation),
   });
-
   const nitratesQuery = useQuery({
-    queryKey: ["nitrates", location.latitude, location.longitude],
+    queryKey: [
+      "nitrates",
+      farmLocation?.latitude,
+      farmLocation?.longitude,
+      "environment",
+    ],
     queryFn: async () => {
       const response = await fetch(
-        `/api/data/nitrates?lat=${location.latitude}&lng=${location.longitude}&radius=0.3`,
+        `/api/data/nitrates?lat=${farmLocation?.latitude}&lng=${farmLocation?.longitude}&radius=0.2`,
       );
-      if (!response.ok) throw new Error("Nitrates failed");
-      return response.json() as Promise<
-        SourceSnapshot<GeoJSON.FeatureCollection>
-      >;
+      return (await response.json()) as SourceSnapshot<GeoJSON.FeatureCollection>;
     },
+    enabled: Boolean(farmLocation),
   });
 
-  const ghgQuery = useQuery({
-    queryKey: ["cso", "EAA01"],
-    queryFn: async () => {
-      const response = await fetch("/api/data/cso/EAA01");
-      if (!response.ok) throw new Error("EAA01 failed");
-      return response.json() as Promise<JsonStatDataset>;
-    },
-  });
-
-  const ghgSeries = useMemo(() => {
-    if (!ghgQuery.data) {
-      return { years: [], co2: [], n2o: [], ch4: [], all: [] };
-    }
-
-    const rows = decodeJsonStat(ghgQuery.data).filter(
-      (row) => row.C02414V02915 === "80000",
-    );
-
-    const years = Array.from(
-      new Set(
-        rows
-          .map((row) => parseYear(String(row["TLIST(A1)"])))
-          .filter((year) => Number.isFinite(year)),
-      ),
-    ).sort((a, b) => a - b);
-
-    function valuesFor(statCode: string) {
-      return years.map((year) => {
-        const row = rows.find(
-          (candidate) =>
-            parseYear(String(candidate["TLIST(A1)"])) === year &&
-            candidate.STATISTIC === statCode,
-        );
-        return row ? Number(row.value) : 0;
+  const waterbodies = useMemo(() => {
+    const found = new Map<string, Waterbody>();
+    for (const feature of wfdQuery.data?.data?.rivers.features ?? []) {
+      const properties = (feature.properties ?? {}) as Record<string, unknown>;
+      const id = String(properties.European_Code ?? feature.id ?? "");
+      if (!id || found.has(id)) continue;
+      found.set(id, {
+        id,
+        name: String(properties.Name ?? "Unnamed river waterbody"),
+        kind: "River",
+        status: String(properties.Status ?? "Not classified"),
+        period: String(properties.Period_for_WFD_Status ?? "2019–2024"),
       });
     }
-
-    return {
-      years,
-      co2: valuesFor("EAA01C1"),
-      n2o: valuesFor("EAA01C2"),
-      ch4: valuesFor("EAA01C3"),
-      all: valuesFor("EAA01C4"),
-    };
-  }, [ghgQuery.data]);
+    for (const feature of wfdQuery.data?.data?.groundwater.features ?? []) {
+      const properties = (feature.properties ?? {}) as Record<string, unknown>;
+      const id = String(properties.European_Code ?? feature.id ?? "");
+      if (!id || found.has(id)) continue;
+      found.set(id, {
+        id,
+        name: String(properties.Name ?? "Unnamed groundwater body"),
+        kind: "Groundwater",
+        status: String(properties.Overall_GW_Status ?? "Not classified"),
+        period: String(properties.Period_for_WFD_Status ?? "2019–2024"),
+      });
+    }
+    return Array.from(found.values()).sort((a, b) => {
+      const order = [
+        "Bad",
+        "Poor",
+        "Moderate",
+        "Not classified",
+        "Good",
+        "High",
+      ];
+      return (
+        order.indexOf(baseStatus(a.status) ?? "Not classified") -
+        order.indexOf(baseStatus(b.status) ?? "Not classified")
+      );
+    });
+  }, [wfdQuery.data]);
 
   const statusCounts = useMemo(() => {
     const counts = new Map<string, number>();
-
-    for (const feature of wfdQuery.data?.data?.rivers.features ?? []) {
-      const status = String(
-        (feature.properties as Record<string, unknown>)?.Status ?? "Unknown",
-      );
+    for (const item of waterbodies) {
+      const status = baseStatus(item.status) ?? item.status;
       counts.set(status, (counts.get(status) ?? 0) + 1);
     }
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  }, [waterbodies]);
 
-    for (const feature of wfdQuery.data?.data?.groundwater.features ?? []) {
-      const status = String(
-        (feature.properties as Record<string, unknown>)?.Overall_GW_Status ??
-          "Unknown",
-      );
-      counts.set(status, (counts.get(status) ?? 0) + 1);
+  const stockingRates = useMemo(() => {
+    const rates = new Set<string>();
+    for (const feature of nitratesQuery.data?.data?.features ?? []) {
+      const value = (feature.properties as Record<string, unknown> | null)
+        ?.STK_RATE;
+      if (typeof value === "string" && value.trim()) rates.add(value.trim());
     }
+    return Array.from(rates).sort();
+  }, [nitratesQuery.data]);
 
-    return Array.from(counts.entries()).map(([status, count]) => ({
-      status,
-      count,
-    }));
-  }, [wfdQuery.data]);
+  if (!hasHydrated) {
+    return (
+      <output className="block animate-pulse" aria-label="Loading environment">
+        <span className="block h-12 w-2/3 rounded bg-muted" />
+        <span className="mt-8 block h-72 rounded bg-muted" />
+      </output>
+    );
+  }
 
-  const wms = {
-    nitrateSusc:
-      "https://gis.epa.ie/geoserver/wms?service=WMS&version=1.1.1&request=GetMap&layers=EPA:WFD_CCTnsNitrateSusc&styles=&bbox={bbox-epsg-3857}&width=256&height=256&srs=EPSG:3857&format=image/png&transparent=true",
-    phosphorusSusc:
-      "https://gis.epa.ie/geoserver/wms?service=WMS&version=1.1.1&request=GetMap&layers=EPA:WFD_CCTnsPhosphateSusc&styles=&bbox={bbox-epsg-3857}&width=256&height=256&srs=EPSG:3857&format=image/png&transparent=true",
-    agPressure:
-      "https://gis.epa.ie/geoserver/wms?service=WMS&version=1.1.1&request=GetMap&layers=EPA:WFD_RWB_Pressures_Agriculture&styles=&bbox={bbox-epsg-3857}&width=256&height=256&srs=EPSG:3857&format=image/png&transparent=true",
-    corine:
-      "https://gis.epa.ie/geoserver/wms?service=WMS&version=1.1.1&request=GetMap&layers=EPA:LAND_CLC18&styles=&bbox={bbox-epsg-3857}&width=256&height=256&srs=EPSG:3857&format=image/png&transparent=true",
-    corineChange:
-      "https://gis.epa.ie/geoserver/wms?service=WMS&version=1.1.1&request=GetMap&layers=EPA:LAND_CLCCH_12_18&styles=&bbox={bbox-epsg-3857}&width=256&height=256&srs=EPSG:3857&format=image/png&transparent=true",
-  };
+  if (!farmLocation) {
+    return (
+      <div className="max-w-2xl border-t border-border pt-8">
+        <MapPin className="h-7 w-7 text-primary" />
+        <h1 className="font-editorial mt-5 text-5xl font-medium">
+          Environmental context needs a farm pin
+        </h1>
+        <p className="mt-4 text-base leading-7 text-muted-foreground">
+          Save a manual point before loading nearby EPA and DAFM screening
+          layers.
+        </p>
+        <Link
+          href="/this-week"
+          className="mt-6 inline-flex min-h-11 items-center gap-2 font-semibold text-primary"
+        >
+          Set up the farm
+          <ArrowRight className="h-4 w-4" />
+        </Link>
+      </div>
+    );
+  }
 
-  const totalWaterbodies = statusCounts.reduce(
-    (acc, item) => acc + item.count,
-    0,
-  );
-  const goodHighCount = statusCounts
-    .filter((item) => ["Good", "High"].includes(item.status))
-    .reduce((acc, item) => acc + item.count, 0);
-  const goodHighShare = totalWaterbodies
-    ? `${Math.round((goodHighCount / totalWaterbodies) * 100)}%`
-    : "0%";
-  const complianceItems = [
-    {
-      label: "Water quality",
-      detail: totalWaterbodies
-        ? `${goodHighShare} of mapped waterbodies are Good or High; inspect Moderate/Poor areas before nutrient or drainage work.`
-        : "EPA waterbody feed is empty for this point; click the map or retry before making a compliance call.",
-    },
-    {
-      label: "Nitrate pressure",
-      detail: showNitrate
-        ? "Nitrate zone overlay is active; use it as a screening layer, then confirm field-specific rules."
-        : "Turn on the nitrate overlay before checking spreading or stocking implications.",
-    },
-    {
-      label: "Habitat context",
-      detail: complianceActionForEnterprise(enterprise, weekFocus, {
-        goodHighShare: totalWaterbodies
-          ? Math.round((goodHighCount / totalWaterbodies) * 100)
-          : null,
-      }),
-    },
-  ];
+  const nonGoodCount = waterbodies.filter(
+    (item) => !["Good", "High"].includes(item.status),
+  ).length;
 
   return (
-    <div className="grid gap-6">
-      <DecisionPanel title="Compliance watch points" items={complianceItems} />
+    <div>
+      <header className="border-b border-border pb-7">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+          Environment · nearby screening evidence
+        </p>
+        <h1 className="font-editorial mt-2 text-5xl font-medium tracking-[-0.035em] sm:text-6xl">
+          Water and nitrates, kept in scope
+        </h1>
+        <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">
+          EPA waterbody classifications and the current DAFM nitrate layer near
+          the saved pin. These are screening signals—not a field assessment,
+          holding determination, or compliance decision.
+        </p>
+      </header>
 
-      <section className="grid gap-4 sm:grid-cols-2">
-        <KpiCard
-          label="Waterbodies in view"
-          value={
-            wfdQuery.isLoading ? "Loading" : totalWaterbodies || "Unavailable"
-          }
-          icon={Droplets}
-          variant="info"
-          trend={
-            totalWaterbodies ? "EPA WFD response" : "Click map or retry feed"
-          }
-        />
-        <KpiCard
-          label="Good/High status share"
-          value={
-            wfdQuery.isLoading
-              ? "Loading"
-              : totalWaterbodies
-                ? goodHighShare
-                : "Unavailable"
-          }
-          icon={Fish}
-          variant="success"
-          trend={totalWaterbodies ? "Local catchment status" : "No status rows"}
-        />
+      <section className="grid border-b border-border sm:grid-cols-3">
+        <div className="border-b border-border py-6 sm:border-b-0 sm:border-r sm:pr-6">
+          <p className="text-xs text-muted-foreground">
+            Waterbodies returned nearby
+          </p>
+          <p className="font-editorial mt-2 text-4xl font-medium">
+            {wfdQuery.isLoading ? "—" : waterbodies.length || "—"}
+          </p>
+        </div>
+        <div className="border-b border-border py-6 sm:border-b-0 sm:border-r sm:px-6">
+          <p className="text-xs text-muted-foreground">
+            Below Good / unclassified
+          </p>
+          <p className="font-editorial mt-2 text-4xl font-medium">
+            {wfdQuery.isLoading ? "—" : nonGoodCount}
+          </p>
+        </div>
+        <div className="py-6 sm:pl-6">
+          <p className="text-xs text-muted-foreground">
+            Nitrate map features nearby
+          </p>
+          <p className="font-editorial mt-2 text-4xl font-medium">
+            {nitratesQuery.isLoading
+              ? "—"
+              : (nitratesQuery.data?.data?.features.length ?? "—")}
+          </p>
+        </div>
       </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>EPA Water Quality Status Map</CardTitle>
-          <CardDescription>
-            River and groundwater bodies colour-coded by
-            High/Good/Moderate/Poor/Bad status.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant={showNitrate ? "default" : "outline"}
-              onClick={() => setShowNitrate((v) => !v)}
-            >
-              DAFM Nitrate Zone
-            </Button>
-            <Button
-              variant={showNitrateSusc ? "default" : "outline"}
-              onClick={() => setShowNitrateSusc((v) => !v)}
-            >
-              Nitrate Susceptibility
-            </Button>
-            <Button
-              variant={showPhosphorusSusc ? "default" : "outline"}
-              onClick={() => setShowPhosphorusSusc((v) => !v)}
-            >
-              Phosphorus Susceptibility
-            </Button>
-            <Button
-              variant={showAgPressure ? "default" : "outline"}
-              onClick={() => setShowAgPressure((v) => !v)}
-            >
-              Agricultural Pressure
-            </Button>
-            <Button
-              variant={showCorine ? "default" : "outline"}
-              onClick={() => setShowCorine((v) => !v)}
-            >
-              CORINE Land Cover
-            </Button>
-            <Button
-              variant={showCorineChange ? "default" : "outline"}
-              onClick={() => setShowCorineChange((v) => !v)}
-            >
-              CORINE Change 12-18
-            </Button>
-          </div>
-
-          <div className="h-[460px] overflow-hidden rounded-lg border border-border">
-            <MapView
-              mapStyle="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
-              initialViewState={{ longitude: -7.5, latitude: 53.5, zoom: 7 }}
-              longitude={location.longitude}
-              latitude={location.latitude}
-              zoom={8}
-              onClick={(event) => {
-                setLocation({
-                  latitude: event.lngLat.lat,
-                  longitude: event.lngLat.lng,
-                });
-              }}
-            >
-              {showNitrateSusc ? (
-                <Source
-                  id="nitrate-susc"
-                  type="raster"
-                  tiles={[wms.nitrateSusc]}
-                  tileSize={256}
-                >
-                  <Layer
-                    id="nitrate-susc-layer"
-                    type="raster"
-                    paint={{ "raster-opacity": 0.5 }}
-                  />
-                </Source>
+      <section className="grid gap-8 border-b border-border py-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            EPA classification
+          </p>
+          <h2 className="font-editorial mt-1 text-3xl font-medium">
+            Waterbodies in the screening box
+          </h2>
+          {wfdQuery.isLoading ? (
+            <p className="mt-5 text-sm text-muted-foreground">
+              Loading current EPA classifications…
+            </p>
+          ) : wfdQuery.data?.status === "live" && waterbodies.length ? (
+            <>
+              <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 border-y border-border py-3 text-xs">
+                {statusCounts.map(([status, count]) => (
+                  <span key={status} className={statusTone(status)}>
+                    <strong>{count}</strong> {status}
+                  </span>
+                ))}
+              </div>
+              <div className="border-b border-border">
+                {waterbodies.slice(0, 10).map((item) => (
+                  <article
+                    key={item.id}
+                    className="grid gap-2 border-b border-border py-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_110px_120px]"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">
+                        {item.name}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {item.kind} · {item.id}
+                      </p>
+                    </div>
+                    <p
+                      className={cn(
+                        "text-sm font-semibold",
+                        statusTone(item.status),
+                      )}
+                    >
+                      {item.status}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.period}
+                    </p>
+                  </article>
+                ))}
+              </div>
+              {waterbodies.length > 10 ? (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Showing the 10 most cautionary of {waterbodies.length} unique
+                  waterbodies returned.
+                </p>
               ) : null}
+            </>
+          ) : (
+            <div className="mt-5 flex gap-3 border-l-2 border-destructive py-2 pl-4 text-sm text-muted-foreground">
+              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+              <p>
+                EPA classifications are unavailable. No status or zero value has
+                been substituted.
+              </p>
+            </div>
+          )}
+        </div>
 
-              {showPhosphorusSusc ? (
-                <Source
-                  id="phosphorus-susc"
-                  type="raster"
-                  tiles={[wms.phosphorusSusc]}
-                  tileSize={256}
-                >
-                  <Layer
-                    id="phosphorus-susc-layer"
-                    type="raster"
-                    paint={{ "raster-opacity": 0.5 }}
-                  />
-                </Source>
-              ) : null}
-
-              {showAgPressure ? (
-                <Source
-                  id="ag-pressure"
-                  type="raster"
-                  tiles={[wms.agPressure]}
-                  tileSize={256}
-                >
-                  <Layer
-                    id="ag-pressure-layer"
-                    type="raster"
-                    paint={{ "raster-opacity": 0.45 }}
-                  />
-                </Source>
-              ) : null}
-
-              {showCorine ? (
-                <Source
-                  id="corine"
-                  type="raster"
-                  tiles={[wms.corine]}
-                  tileSize={256}
-                >
-                  <Layer
-                    id="corine-layer"
-                    type="raster"
-                    paint={{ "raster-opacity": 0.45 }}
-                  />
-                </Source>
-              ) : null}
-
-              {showCorineChange ? (
-                <Source
-                  id="corine-change"
-                  type="raster"
-                  tiles={[wms.corineChange]}
-                  tileSize={256}
-                >
-                  <Layer
-                    id="corine-change-layer"
-                    type="raster"
-                    paint={{ "raster-opacity": 0.5 }}
-                  />
-                </Source>
-              ) : null}
-
-              {showNitrate && nitratesQuery.data?.data ? (
-                <Source
-                  id="nitrates-zone"
-                  type="geojson"
-                  data={nitratesQuery.data.data}
-                >
-                  <Layer
-                    id="nitrate-zone-fill"
-                    type="fill"
-                    paint={{ "fill-color": "#f59e0b", "fill-opacity": 0.18 }}
-                  />
-                </Source>
-              ) : null}
-
-              {wfdQuery.data?.data?.groundwater ? (
-                <Source
-                  id="wfd-groundwater"
-                  type="geojson"
-                  data={wfdQuery.data.data.groundwater}
-                >
-                  <Layer
-                    id="wfd-groundwater-fill"
-                    type="fill"
-                    paint={{
-                      "fill-color": statusColorExpression(
-                        "Overall_GW_Status",
-                      ) as never,
-                      "fill-opacity": 0.25,
-                    }}
-                  />
-                </Source>
-              ) : null}
-
-              {wfdQuery.data?.data?.rivers ? (
-                <Source
-                  id="wfd-rivers"
-                  type="geojson"
-                  data={wfdQuery.data.data.rivers}
-                >
-                  <Layer
-                    id="wfd-rivers-line"
-                    type="line"
-                    paint={{
-                      "line-color": statusColorExpression("Status") as never,
-                      "line-width": 2,
-                    }}
-                  />
-                </Source>
-              ) : null}
-            </MapView>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Catchment Status Summary</CardTitle>
-          <CardDescription>
-            Water quality status counts in the current map search area.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ChartState
-            isLoading={wfdQuery.isLoading}
-            isError={wfdQuery.isError}
-            isEmpty={!statusCounts.length}
+        <aside className="border-t border-border pt-6 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+          <Waves className="h-5 w-5 text-info" />
+          <h2 className="font-editorial mt-3 text-3xl font-medium">
+            How to use this
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+            A Moderate, Poor, or Bad classification raises the bar for checking
+            nutrient, drainage, bank-side, and buffer decisions. It does not by
+            itself establish the rule for a field.
+          </p>
+          <Link
+            href="/my-land"
+            className="mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary"
           >
-            <ThemedChart
-              style={{ height: 300 }}
-              option={{
-                tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-                xAxis: {
-                  type: "category",
-                  data: statusCounts.map((item) => item.status),
-                },
-                yAxis: { type: "value" },
-                series: [
-                  {
-                    type: "bar",
-                    data: statusCounts.map((item) => item.count),
-                  },
-                ],
-              }}
-            />
-          </ChartState>
-        </CardContent>
-      </Card>
+            Inspect the map layers
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </aside>
+      </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Agricultural GHG Emissions (CSO EAA01)</CardTitle>
-          <CardDescription>
-            Time series for agriculture, forestry and fishing emissions by gas
-            and total.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ThemedChart
-            style={{ height: 340 }}
-            option={{
-              tooltip: { trigger: "axis" },
-              legend: { data: ["CO2", "N2O", "CH4", "All GHG"] },
-              xAxis: { type: "category", data: ghgSeries.years },
-              yAxis: { type: "value" },
-              dataZoom: [{ type: "inside" }, { type: "slider" }],
-              series: [
-                { name: "CO2", type: "line", data: ghgSeries.co2 },
-                { name: "N2O", type: "line", data: ghgSeries.n2o },
-                { name: "CH4", type: "line", data: ghgSeries.ch4 },
-                { name: "All GHG", type: "line", data: ghgSeries.all },
-              ],
-            }}
-          />
-        </CardContent>
-      </Card>
+      <section className="grid gap-8 border-b border-border py-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            DAFM nitrate screening
+          </p>
+          <h2 className="font-editorial mt-1 text-3xl font-medium">
+            Published stocking-rate layer
+          </h2>
+          {nitratesQuery.data?.status === "live" ? (
+            <>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {stockingRates.length ? (
+                  stockingRates.map((rate) => (
+                    <span
+                      key={rate}
+                      className="border border-warning/35 bg-warning/10 px-3 py-2 text-sm font-semibold"
+                    >
+                      {rate}
+                    </span>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No stocking-rate label was returned in this screening box.
+                  </p>
+                )}
+              </div>
+              <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground">
+                These are labels from intersecting map features, not a holding
+                calculation. Confirm the current National Action Programme,
+                derogation terms, stocking records, and adviser guidance.
+              </p>
+            </>
+          ) : nitratesQuery.isLoading ? (
+            <p className="mt-5 text-sm text-muted-foreground">
+              Loading the current DAFM layer…
+            </p>
+          ) : (
+            <p className="mt-5 border-l-2 border-destructive py-2 pl-4 text-sm text-muted-foreground">
+              The DAFM screening layer is unavailable. No result has been
+              inferred.
+            </p>
+          )}
+        </div>
+        <aside className="border-t border-border pt-6 text-sm lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+          <p className="text-xs text-muted-foreground">Current source</p>
+          <p className="mt-1 font-semibold">
+            {nitratesQuery.data?.source.label ?? "DAFM nitrates map"}
+          </p>
+          <p className="mt-4 text-xs text-muted-foreground">Checked</p>
+          <p className="mt-1 font-semibold">
+            {formatCheckedAt(nitratesQuery.data?.fetchedAt)}
+          </p>
+          {nitratesQuery.data?.source.url ? (
+            <a
+              href={nitratesQuery.data.source.url}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-5 inline-flex min-h-11 items-center gap-2 font-semibold text-primary"
+            >
+              Official map source
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          ) : null}
+        </aside>
+      </section>
+
+      <section className="grid gap-5 py-7 text-sm leading-6 text-muted-foreground sm:grid-cols-2">
+        <div className="flex gap-3">
+          <Droplets className="mt-0.5 h-5 w-5 shrink-0 text-info" />
+          <p>
+            EPA WFD classifications cover the 2019–2024 assessment period and
+            describe mapped waterbodies returned near the pin, not the farm.
+            Checked {formatCheckedAt(wfdQuery.data?.fetchedAt)}.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <p>
+            AgriView does not show biodiversity records until a maintained,
+            redistributable source and a farmer decision use-case are both
+            established. Absence of a layer is not evidence of absence.
+          </p>
+        </div>
+      </section>
     </div>
   );
 }

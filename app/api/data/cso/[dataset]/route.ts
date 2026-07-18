@@ -1,16 +1,6 @@
 import { NextResponse } from "next/server";
 
-const ALLOWED = new Set([
-  "AEA01",
-  "ACA03",
-  "AHM05",
-  "AAA09",
-  "ADM01",
-  "AKM03",
-  "AJM09",
-  "PFSA03",
-  "EAA01",
-]);
+const ALLOWED = new Set(["AEA01", "AHM05"]);
 
 export async function GET(
   _request: Request,
