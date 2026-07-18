@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   Check,
+  CircleAlert,
   ExternalLink,
   Layers3,
   LocateFixed,
@@ -29,6 +30,12 @@ import {
   weekFocusOptions,
 } from "@/lib/farm-plan";
 import {
+  formatNitrateScreeningLabel,
+  formatParcelReference,
+  humanizeLandUse,
+  prioritizeSelectedParcel,
+} from "@/lib/land-format";
+import {
   type FarmEnterprise,
   type FarmWeekFocus,
   useUiStore,
@@ -38,14 +45,18 @@ type LatLng = { latitude: number; longitude: number };
 
 function sourceAge(value: string | undefined) {
   if (!value) return "Not refreshed";
-  return new Intl.RelativeTimeFormat("en-IE", { numeric: "auto" }).format(
-    Math.round((new Date(value).getTime() - Date.now()) / 60_000),
-    "minute",
+  const differenceMinutes = Math.round(
+    (new Date(value).getTime() - Date.now()) / 60_000,
   );
-}
-
-function parcelReference(id: string) {
-  return id.length > 16 ? `Parcel …${id.slice(-8)}` : `Parcel ${id}`;
+  const formatter = new Intl.RelativeTimeFormat("en-IE", { numeric: "auto" });
+  if (Math.abs(differenceMinutes) < 120) {
+    return formatter.format(differenceMinutes, "minute");
+  }
+  const differenceHours = Math.round(differenceMinutes / 60);
+  if (Math.abs(differenceHours) < 48) {
+    return formatter.format(differenceHours, "hour");
+  }
+  return formatter.format(Math.round(differenceHours / 24), "day");
 }
 
 export default function MyLandPage() {
@@ -58,6 +69,7 @@ export default function MyLandPage() {
   const hasHydrated = useUiStore((state) => state.hasHydrated);
   const [pendingPin, setPendingPin] = useState<LatLng | null>(null);
   const [isEditingPin, setIsEditingPin] = useState(false);
+  const [selectedParcelId, setSelectedParcelId] = useState<string | null>(null);
   const [showSoil, setShowSoil] = useState(false);
 
   const point = pendingPin ?? farmLocation;
@@ -106,7 +118,9 @@ export default function MyLandPage() {
       const id = String(properties.parcelId ?? feature.id ?? "Unlabelled");
       const parcel = {
         id,
-        crop: String(properties.cropCode ?? "Land use not published"),
+        crop: humanizeLandUse(
+          String(properties.cropCode ?? "Land use not published"),
+        ),
         area: Number(properties.digitisedAreaHa),
         claimedArea: Number(properties.claimedAreaHa),
         organic: properties.organic === true,
@@ -121,7 +135,7 @@ export default function MyLandPage() {
     }
     return Array.from(byParcel.values()).sort((a, b) => b.area - a.area);
   }, [lpisQuery.data]);
-  const visibleParcels = parcels.slice(0, 8);
+  const visibleParcels = prioritizeSelectedParcel(parcels, selectedParcelId);
   const totalArea = parcels.reduce((sum, parcel) => sum + parcel.area, 0);
   const lpisFeatureLimitReached =
     (lpisQuery.data?.data?.features.length ?? 0) >= 500;
@@ -141,6 +155,7 @@ export default function MyLandPage() {
         ),
     ),
   ).sort();
+  const nitrateLabels = stockingRates.map(formatNitrateScreeningLabel);
 
   if (!hasHydrated) {
     return (
@@ -216,16 +231,21 @@ export default function MyLandPage() {
 
       <section className="grid gap-3 border-b border-border py-4 text-xs sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <p className="text-muted-foreground">Nitrate screening</p>
-          <p className="mt-1 font-semibold">
+          <p className="text-muted-foreground">Nearby nitrate band</p>
+          <div className="mt-1 font-semibold">
             {nitratesQuery.isLoading
               ? "Loading"
               : nitratesUnavailable
                 ? "Temporarily unavailable"
-                : stockingRates.length
-                  ? stockingRates.join(" · ")
-                  : "No nearby label returned"}
-          </p>
+                : nitrateLabels.length
+                  ? nitrateLabels.map((label) => (
+                      <p key={label.raw}>
+                        {label.rate}
+                        {label.effective ? ` · from ${label.effective}` : ""}
+                      </p>
+                    ))
+                  : "No nearby band returned"}
+          </div>
         </div>
         <div>
           <p className="text-muted-foreground">Farm area</p>
@@ -245,6 +265,11 @@ export default function MyLandPage() {
                   ? `${parcels.length} unique · 500-feature limit`
                   : `${parcels.length} nearby parcels`}
           </p>
+          {lpisFeatureLimitReached ? (
+            <p className="mt-1 text-warning">
+              Response capped; this is not a complete parcel count.
+            </p>
+          ) : null}
         </div>
         <div>
           <p className="text-muted-foreground">Last checked</p>
@@ -255,39 +280,50 @@ export default function MyLandPage() {
       </section>
 
       <section className="py-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Reference map
+              Nearby evidence workspace
             </p>
             <h2 className="font-editorial mt-1 text-3xl font-medium">
-              Parcels and soil context
+              Map and parcel register
             </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              Select a parcel on either side to keep the visual and readable
+              views in step. Results cover the search around your pin, not a
+              declared farm boundary.
+            </p>
           </div>
           <fieldset className="flex flex-wrap gap-2">
             <legend className="sr-only">Map layers</legend>
             <Button
               variant={showSoil ? "default" : "outline"}
+              aria-pressed={showSoil}
               onClick={() => setShowSoil((value) => !value)}
               className="gap-2"
             >
               {showSoil ? <Check className="h-4 w-4" /> : null}
-              Soil
+              EPA soil overlay
             </Button>
           </fieldset>
         </div>
 
         {isEditingPin ? (
-          <div className="mt-5 grid gap-4 border-l-2 border-warning bg-warning/10 px-4 py-4 text-sm lg:grid-cols-[minmax(0,1fr)_320px]">
+          <section
+            className="mt-5 grid gap-5 border-l-2 border-warning bg-warning/10 px-5 py-5 text-sm lg:grid-cols-[minmax(0,1fr)_320px]"
+            aria-label="Move farm pin"
+          >
             <div>
-              <p>
-                Use the map or coordinates to place a candidate pin. Data will
-                refresh around it; save only when the point is right.
+              <p className="font-semibold">Choose a candidate point</p>
+              <p className="mt-1 max-w-xl leading-6 text-muted-foreground">
+                Click the map or enter coordinates. Nearby evidence refreshes
+                for the candidate, but your saved farm stays unchanged until you
+                confirm.
               </p>
-              <div className="mt-3 flex gap-2">
-                {pendingPin ? (
-                  <Button onClick={savePin}>Save pin</Button>
-                ) : null}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button onClick={savePin} disabled={!pendingPin}>
+                  Save candidate pin
+                </Button>
                 <Button
                   variant="ghost"
                   onClick={() => setPendingPin(null)}
@@ -295,7 +331,7 @@ export default function MyLandPage() {
                   className="gap-2"
                 >
                   <RotateCcw className="h-4 w-4" />
-                  Undo
+                  Undo candidate
                 </Button>
               </div>
             </div>
@@ -305,115 +341,228 @@ export default function MyLandPage() {
               actionLabel="Use as candidate"
               onApply={setPendingPin}
             />
-          </div>
+          </section>
         ) : null}
 
-        <div className="mt-5">
-          <IrelandMap
-            center={point}
-            onPickLocation={(location) => {
-              if (isEditingPin) setPendingPin(location);
-            }}
-            lpisGeoJson={lpisQuery.data?.data ?? undefined}
-            showSoilLayer={showSoil}
-          />
-        </div>
-        <div className="mt-3 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
-          <Layers3 className="mt-0.5 h-4 w-4 shrink-0" />
-          <p>
-            Green: DAFM LPIS 2024 reference parcels. Soil is an optional EPA WMS
-            overlay. Nitrate labels are screened without sending the source’s
-            multi-megabyte national polygons to the browser.
-          </p>
-        </div>
-      </section>
-
-      <section className="grid gap-8 border-t border-border py-8 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div>
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Text alternative
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.7fr)]">
+          <div className="min-w-0">
+            <IrelandMap
+              center={point}
+              onPickLocation={setPendingPin}
+              onSelectParcel={setSelectedParcelId}
+              pickLocation={isEditingPin}
+              selectedParcelId={selectedParcelId}
+              lpisGeoJson={lpisQuery.data?.data ?? undefined}
+              showSoilLayer={showSoil}
+            />
+            <div className="mt-3 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
+              <Layers3 className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>
+                Green outlines are DAFM LPIS 2024 reference features. LPIS does
+                not establish ownership, eligibility, control, or your legal
+                holding boundary. EPA soil is a contextual WMS overlay.
               </p>
-              <h2 className="font-editorial mt-1 text-3xl font-medium">
-                Largest nearby parcels
-              </h2>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {totalArea.toFixed(1)} ha in response
-            </p>
           </div>
-          <div className="mt-5 border-y border-border">
-            {lpisQuery.isLoading ? (
-              <p className="py-6 text-sm text-muted-foreground">
-                Loading current LPIS reference parcels…
-              </p>
-            ) : lpisUnavailable ? (
-              <div className="py-6 text-sm">
-                <p className="font-semibold text-destructive">
-                  LPIS parcels are temporarily unavailable.
+
+          <div className="min-w-0 border-t border-border pt-5 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Readable register
                 </p>
-                <p className="mt-1 text-muted-foreground">
-                  AgriView has not treated the failed request as an empty parcel
-                  result.
+                <h3 className="font-editorial mt-1 text-2xl font-medium">
+                  Largest nearby parcels
+                </h3>
+              </div>
+              <p className="shrink-0 text-xs text-muted-foreground">
+                {totalArea.toFixed(1)} ha returned
+              </p>
+            </div>
+
+            {lpisFeatureLimitReached ? (
+              <div className="mt-4 flex gap-2 border-l-2 border-warning bg-warning/10 px-3 py-3 text-xs leading-5">
+                <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                <p>
+                  The source hit its 500-feature response limit. The map and
+                  totals are a partial nearby sample, not a complete count.
                 </p>
               </div>
-            ) : visibleParcels.length ? (
-              visibleParcels.map((parcel) => (
-                <div
-                  key={parcel.id}
-                  className="grid min-h-14 items-center gap-2 border-b border-border py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_80px_120px]"
+            ) : null}
+
+            <div className="mt-4 border-y border-border">
+              {lpisQuery.isLoading ? (
+                <output
+                  className="block animate-pulse py-5"
+                  aria-label="Loading nearby parcel register"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">
-                      {parcel.crop}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {parcelReference(parcel.id)}
-                    </p>
-                  </div>
-                  <p className="text-sm">{parcel.area.toFixed(2)} ha</p>
+                  <span className="block h-12 rounded bg-muted" />
+                  <span className="mt-2 block h-12 rounded bg-muted" />
+                  <span className="mt-2 block h-12 rounded bg-muted" />
+                </output>
+              ) : lpisUnavailable ? (
+                <div className="py-6 text-sm">
+                  <p className="font-semibold text-destructive">
+                    LPIS reference parcels are temporarily unavailable.
+                  </p>
+                  <p className="mt-1 leading-6 text-muted-foreground">
+                    The request failed; AgriView has not presented that as an
+                    empty result.
+                  </p>
+                </div>
+              ) : visibleParcels.length ? (
+                visibleParcels.map((parcel) => {
+                  const isSelected = selectedParcelId === parcel.id;
+                  const parcelRank =
+                    parcels.findIndex(
+                      (candidate) => candidate.id === parcel.id,
+                    ) + 1;
+                  return (
+                    <button
+                      key={parcel.id}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() => setSelectedParcelId(parcel.id)}
+                      onFocus={() => setSelectedParcelId(parcel.id)}
+                      onPointerEnter={() => setSelectedParcelId(parcel.id)}
+                      className={`grid w-full min-h-16 items-center gap-2 border-b border-border px-2 py-3 text-left transition-colors last:border-b-0 sm:grid-cols-[32px_minmax(0,1fr)_72px] ${
+                        isSelected
+                          ? "bg-primary/10"
+                          : "hover:bg-muted/60 focus-visible:bg-muted/60"
+                      }`}
+                    >
+                      <span
+                        className={`font-editorial flex h-7 w-7 items-center justify-center rounded-full text-sm ${
+                          isSelected
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                        aria-hidden="true"
+                      >
+                        {parcelRank}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold">
+                          {parcel.crop}
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {formatParcelReference(parcel.id)}
+                        </span>
+                        {parcel.organic || parcel.commonage ? (
+                          <span className="mt-1 block text-xs text-primary">
+                            {parcel.organic
+                              ? "Organic indicator"
+                              : "Commonage indicator"}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="text-right text-sm font-semibold">
+                        {parcel.area.toFixed(2)}
+                        <span className="ml-1 text-xs font-normal text-muted-foreground">
+                          ha
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="py-6 text-sm">
+                  <p className="font-semibold">
+                    No valid LPIS parcel rows were returned nearby.
+                  </p>
+                  <p className="mt-1 leading-6 text-muted-foreground">
+                    This is a valid empty response for this search point, not
+                    evidence that no parcel or holding exists.
+                  </p>
+                </div>
+              )}
+            </div>
+            <p className="mt-3 text-xs leading-5 text-muted-foreground">
+              Showing up to eight unique parcels, largest first. If you select
+              another map feature, it replaces the final row so the readable
+              register stays in step. Published source references remain
+              secondary to the land-use labels.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 border-t border-border pt-5 sm:grid-cols-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Nitrate screening context
+            </p>
+            {nitratesQuery.isLoading ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                Checking the published map around the pin…
+              </p>
+            ) : nitratesUnavailable ? (
+              <p className="mt-2 text-sm text-destructive">
+                Nitrate screening is temporarily unavailable.
+              </p>
+            ) : nitrateLabels.length ? (
+              nitrateLabels.map((label) => (
+                <div key={label.raw} className="mt-2">
+                  <p className="text-sm font-semibold">{label.rate}</p>
                   <p className="text-xs text-muted-foreground">
-                    {parcel.organic
-                      ? "Organic indicator"
-                      : parcel.commonage
-                        ? "Commonage indicator"
-                        : "No special indicator"}
+                    {label.effective
+                      ? `Published label effective from ${label.effective}.`
+                      : "The source did not publish an effective month in this label."}{" "}
+                    Raw source label: {label.raw}
                   </p>
                 </div>
               ))
             ) : (
-              <p className="py-6 text-sm text-muted-foreground">
-                No valid LPIS parcel rows were returned near this point.
+              <p className="mt-2 text-sm text-muted-foreground">
+                No nitrate band label was returned for the nearby screening
+                area.
               </p>
             )}
           </div>
+          <div className="text-xs leading-5 text-muted-foreground">
+            <p className="font-semibold uppercase tracking-[0.14em]">
+              How to use this
+            </p>
+            <p className="mt-2">
+              This workspace supplies location context to the weekly brief. It
+              is not a compliance calculator. Confirm current DAFM maps, scheme
+              correspondence, stocking records, and professional advice before
+              making a compliance decision.
+            </p>
+          </div>
         </div>
+      </section>
 
-        <aside className="border-t border-border pt-6 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+      <section className="grid gap-6 border-t border-border py-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,460px)]">
+        <div>
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             County context
           </p>
           <h2 className="font-editorial mt-1 text-3xl font-medium">
             CAP beneficiaries
           </h2>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
+            A public county aggregate for context only. It is not a farm payment
+            estimate and cannot identify an individual beneficiary.
+          </p>
+        </div>
+        <aside>
           {capQuery.isLoading ? (
-            <p className="mt-5 text-sm leading-6 text-muted-foreground">
+            <p className="text-sm leading-6 text-muted-foreground">
               Loading county context…
             </p>
           ) : capUnavailable ? (
-            <p className="mt-5 text-sm leading-6 text-muted-foreground">
+            <p className="text-sm leading-6 text-muted-foreground">
               CAP county context is temporarily unavailable.
             </p>
           ) : capQuery.data?.data ? (
             <>
-              <p className="font-editorial mt-5 text-4xl font-medium">
+              <p className="font-editorial text-4xl font-medium">
                 {capQuery.data.data.beneficiaries.toLocaleString("en-IE")}
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
                 beneficiaries in {capQuery.data.data.county}, 2025
               </p>
-              <p className="mt-5 text-sm leading-6 text-muted-foreground">
+              <p className="mt-4 text-sm leading-6 text-muted-foreground">
                 Total published payments:{" "}
                 <strong className="font-semibold text-foreground">
                   {new Intl.NumberFormat("en-IE", {
@@ -422,20 +571,20 @@ export default function MyLandPage() {
                     maximumFractionDigits: 0,
                   }).format(capQuery.data.data.totalPayment)}
                 </strong>
-                . This is county-level public context, not a farm estimate.
+                .
               </p>
               <a
                 href={capQuery.data.source.url}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary"
+                className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary"
               >
                 Official dataset
                 <ExternalLink className="h-4 w-4" />
               </a>
             </>
           ) : (
-            <p className="mt-5 text-sm leading-6 text-muted-foreground">
+            <p className="text-sm leading-6 text-muted-foreground">
               {farmLocation.county
                 ? `No ${farmLocation.county} aggregate was present in the current published release.`
                 : "Choose a routing area in farm setup to add county context."}

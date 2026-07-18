@@ -132,9 +132,10 @@ async function setSavedFarm(
   );
 }
 
-type LandState = "live" | "empty" | "unavailable" | "transport";
+type LandState = "live" | "empty" | "capped" | "unavailable" | "transport";
 type WarningState = "empty" | "unavailable";
 type ForecastState = "live" | "partial" | "unavailable";
+type OpwState = "live" | "empty" | "unavailable";
 
 async function installApiMocks(
   page: Page,
@@ -146,11 +147,13 @@ async function installApiMocks(
     warningData?: unknown[];
     warningStatus?: "live" | "partial";
     forecastDelayMs?: number;
+    opw?: OpwState;
   } = {},
 ) {
   const land = options.land ?? "live";
   const warnings = options.warnings ?? "empty";
   const forecastState = options.forecastState ?? "live";
+  const opw = options.opw ?? "empty";
   await page.route("**/api/data/**", async (route) => {
     const url = new URL(route.request().url());
 
@@ -213,24 +216,38 @@ async function installApiMocks(
         });
         return;
       }
-      const features =
-        land === "live"
-          ? [
-              {
-                type: "Feature",
-                id: "parcel-1",
-                geometry: null,
-                properties: {
-                  parcelId: "parcel-1",
-                  cropCode: "Grass",
-                  digitisedAreaHa: 4.2,
-                  claimedAreaHa: 4,
-                  organic: false,
-                  commonage: false,
-                },
-              },
-            ]
-          : [];
+      const featureCount = land === "capped" ? 500 : land === "live" ? 3 : 0;
+      const features = Array.from({ length: featureCount }, (_, index) => {
+        const row = Math.floor(index / 25);
+        const column = index % 25;
+        const longitude = farm.longitude - 0.025 + column * 0.002;
+        const latitude = farm.latitude - 0.02 + row * 0.002;
+        const parcelId = `CA98F1F20DBCFB3B6B1AD1E4399E626C-${String(index + 1).padStart(4, "0")}`;
+        return {
+          type: "Feature",
+          id: parcelId,
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [longitude, latitude],
+                [longitude + 0.0015, latitude],
+                [longitude + 0.0015, latitude + 0.0015],
+                [longitude, latitude + 0.0015],
+                [longitude, latitude],
+              ],
+            ],
+          },
+          properties: {
+            parcelId,
+            cropCode: index % 2 ? "PERMANENT_PASTURE" : "Grass",
+            digitisedAreaHa: 4.2 + index / 100,
+            claimedAreaHa: 4 + index / 100,
+            organic: index === 1,
+            commonage: index === 2,
+          },
+        };
+      });
       await route.fulfill({
         json: snapshot(
           { type: "FeatureCollection", features },
@@ -252,12 +269,12 @@ async function installApiMocks(
         return;
       }
       const features =
-        land === "live"
+        land === "live" || land === "capped"
           ? [
               {
                 type: "Feature",
                 geometry: null,
-                properties: { STK_RATE: "220 kg N/ha" },
+                properties: { STK_RATE: "220kgN/haJan24" },
               },
             ]
           : [];
@@ -283,7 +300,7 @@ async function installApiMocks(
       }
       await route.fulfill({
         json: snapshot(
-          land === "live"
+          land === "live" || land === "capped"
             ? {
                 county: "GALWAY",
                 beneficiaries: 123,
@@ -296,8 +313,47 @@ async function installApiMocks(
       return;
     }
     if (url.pathname === "/api/data/opw/nearby") {
+      if (opw === "unavailable") {
+        await route.fulfill({
+          status: 502,
+          json: snapshot(null, { status: "unavailable", scope: "nearby" }),
+        });
+        return;
+      }
       await route.fulfill({
-        json: snapshot([], { scope: "nearby" }),
+        json: snapshot(
+          opw === "live"
+            ? [
+                {
+                  stationRef: "30097",
+                  stationName: "Corrib at Wolfe Tone Bridge",
+                  sensorRef: "0001",
+                  parameter: "Water level",
+                  unit: "m",
+                  observedAt: "2026-07-18T08:00:00.000Z",
+                  value: 1.234,
+                  distanceKm: 2.4,
+                  latitude: 53.274,
+                  longitude: -9.054,
+                  csvFile: "/data/month/30097_0001.csv",
+                },
+                {
+                  stationRef: "30098",
+                  stationName: "Clare River at Claregalway",
+                  sensorRef: "0001",
+                  parameter: "Water level",
+                  unit: "m",
+                  observedAt: "2026-07-18T07:45:00.000Z",
+                  value: 0.842,
+                  distanceKm: 10.8,
+                  latitude: 53.34,
+                  longitude: -8.94,
+                  csvFile: "/data/month/30098_0001.csv",
+                },
+              ]
+            : [],
+          { scope: "nearby" },
+        ),
       });
       return;
     }
@@ -404,7 +460,7 @@ test("updates an existing farm pin without requiring a map click", async ({
   await page.getByLabel("Latitude").fill("53.3000");
   await page.getByLabel("Longitude").fill("-8.0000");
   await page.getByRole("button", { name: "Use as candidate" }).click();
-  await page.getByRole("button", { name: "Save pin" }).click();
+  await page.getByRole("button", { name: "Save candidate pin" }).click();
 
   await expect(
     page.getByRole("button", { name: "Move farm pin" }),
@@ -494,7 +550,7 @@ test("keeps unavailable and live-empty Land results distinct", async ({
     page.getByText("Temporarily unavailable", { exact: true }),
   ).toHaveCount(2);
   await expect(
-    page.getByText(/has not treated the failed request as an empty parcel/),
+    page.getByText(/has not presented that as an empty result/),
   ).toBeVisible();
   await expect(
     page.getByText("CAP county context is temporarily unavailable."),
@@ -503,11 +559,11 @@ test("keeps unavailable and live-empty Land results distinct", async ({
   await page.unrouteAll({ behavior: "wait" });
   await installApiMocks(page, { land: "empty" });
   await page.reload();
-  await expect(page.getByText("No nearby label returned")).toBeVisible();
+  await expect(page.getByText("No nearby band returned")).toBeVisible();
   await expect(page.getByText("0 nearby parcels")).toBeVisible();
   await expect(page.getByText(/No GALWAY aggregate was present/)).toBeVisible();
   await expect(
-    page.getByText("No valid LPIS parcel rows were returned near this point."),
+    page.getByText("No valid LPIS parcel rows were returned nearby."),
   ).toBeVisible();
   await expectNoSeriousAxeViolations(page);
 });
@@ -519,8 +575,11 @@ test("renders live Land data and transport failures as distinct states", async (
   await installApiMocks(page, { land: "live" });
   await page.goto("/my-land");
 
-  await expect(page.getByText("220 kg N/ha")).toBeVisible();
-  await expect(page.getByText("1 nearby parcels")).toBeVisible();
+  await expect(
+    page.getByText("220 kg organic N/ha", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(page.getByText(/effective from January 2024/)).toBeVisible();
+  await expect(page.getByText("3 nearby parcels")).toBeVisible();
   await expect(page.getByText("123")).toBeVisible();
   await expect(page.getByText("beneficiaries in GALWAY, 2025")).toBeVisible();
 
@@ -531,10 +590,146 @@ test("renders live Land data and transport failures as distinct states", async (
     page.getByText("Temporarily unavailable", { exact: true }),
   ).toHaveCount(2);
   await expect(
-    page.getByText(/has not treated the failed request as an empty parcel/),
+    page.getByText(/has not presented that as an empty result/),
   ).toBeVisible();
   await expect(
     page.getByText("CAP county context is temporarily unavailable."),
+  ).toBeVisible();
+  await expectNoSeriousAxeViolations(page);
+});
+
+test("keeps Land map and keyboard-accessible parcel selection in step", async ({
+  page,
+}) => {
+  await setSavedFarm(page);
+  await installApiMocks(page, { land: "live" });
+  await page.goto("/my-land");
+
+  const parcelRows = page.locator('button[aria-pressed][type="button"]');
+  await expect(parcelRows).toHaveCount(3);
+  await parcelRows.nth(1).focus();
+  await expect(parcelRows.nth(1)).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("[data-selected-parcel-id]")).toHaveAttribute(
+    "data-selected-parcel-id",
+    /-0002$/,
+  );
+
+  await parcelRows.nth(2).hover();
+  await expect(parcelRows.nth(2)).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("[data-selected-parcel-id]")).toHaveAttribute(
+    "data-selected-parcel-id",
+    /-0001$/,
+  );
+  await expect(page.getByText("Permanent Pasture").first()).toBeVisible();
+  await expect(page.getByText("Reference …26C-0002")).toBeVisible();
+  const soilToggle = page.getByRole("button", { name: "EPA soil overlay" });
+  await expect(soilToggle).toHaveAttribute("aria-pressed", "false");
+  await soilToggle.click();
+  await expect(soilToggle).toHaveAttribute("aria-pressed", "true");
+  await expectNoSeriousAxeViolations(page);
+});
+
+test("labels a capped LPIS response as partial nearby evidence", async ({
+  page,
+}) => {
+  await setSavedFarm(page);
+  await installApiMocks(page, { land: "capped" });
+  await page.goto("/my-land");
+
+  await expect(page.getByText("500 unique · 500-feature limit")).toBeVisible();
+  await expect(
+    page.getByText(/source hit its 500-feature response limit/),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/partial nearby sample, not a complete count/),
+  ).toBeVisible();
+  await expect(page.locator('button[aria-pressed][type="button"]')).toHaveCount(
+    8,
+  );
+});
+
+test("renders a partial forecast on one shared day grid and raw OPW readings", async ({
+  page,
+}) => {
+  await setSavedFarm(page);
+  await installApiMocks(page, {
+    forecastState: "partial",
+    forecastData: forecastFor([0, 2.4, 7, 0.2, 1.1], [20, 24, 31, 18, 22]),
+    warningStatus: "partial",
+    opw: "live",
+  });
+  await page.goto("/weather-water");
+
+  await expect(page.getByText(/Partial forecast:/)).toBeVisible();
+  await expect(page.getByText("Rain, 5 validated days")).toBeVisible();
+  await expect(
+    page.getByText("Official warning feed partially available"),
+  ).toBeVisible();
+  await expect(page.locator("[data-forecast-day]")).toHaveCount(5);
+  await expect(page.locator("[data-rain-bar]").first()).toHaveCSS(
+    "height",
+    "0px",
+  );
+  const alignment = await page.evaluate(() =>
+    Array.from(
+      document.querySelectorAll<HTMLElement>("[data-forecast-day]"),
+    ).map((day) => {
+      const temperature = day.querySelector<HTMLElement>(
+        "[data-temperature-range]",
+      );
+      const rain = day.querySelector<HTMLElement>("[data-rain-bar]");
+      const dayRect = day.getBoundingClientRect();
+      const temperatureRect = temperature?.getBoundingClientRect();
+      const rainRect = rain?.getBoundingClientRect();
+      return {
+        dayCenter: dayRect.left + dayRect.width / 2,
+        temperatureCenter:
+          (temperatureRect?.left ?? 0) + (temperatureRect?.width ?? 0) / 2,
+        rainCenter: (rainRect?.left ?? 0) + (rainRect?.width ?? 0) / 2,
+      };
+    }),
+  );
+  for (const column of alignment) {
+    expect(Math.abs(column.dayCenter - column.temperatureCenter)).toBeLessThan(
+      1,
+    );
+    expect(Math.abs(column.dayCenter - column.rainCenter)).toBeLessThan(1);
+  }
+
+  await expect(page.getByText("Corrib at Wolfe Tone Bridge")).toBeVisible();
+  await expect(page.getByText("1.234 m")).toBeVisible();
+  await expect(
+    page.getByText(/latest validated observation only/),
+  ).toBeVisible();
+  await expect(page.getByText(/does not infer a trend/)).toBeVisible();
+  await expectNoSeriousAxeViolations(page);
+});
+
+test("keeps unavailable and valid-empty Conditions sources distinct", async ({
+  page,
+}) => {
+  await setSavedFarm(page);
+  await installApiMocks(page, {
+    forecastState: "unavailable",
+    warnings: "unavailable",
+    opw: "unavailable",
+  });
+  await page.goto("/weather-water");
+
+  await expect(
+    page.getByText("Official warning feed unavailable"),
+  ).toBeVisible();
+  await expect(page.getByText(/forecast source is unavailable/)).toBeVisible();
+  await expect(
+    page.getByText("Current OPW readings are temporarily unavailable."),
+  ).toBeVisible();
+
+  await page.unrouteAll({ behavior: "wait" });
+  await installApiMocks(page, { opw: "empty" });
+  await page.reload();
+  await expect(page.getByText("No active notices returned")).toBeVisible();
+  await expect(
+    page.getByText("No validated current OPW readings were returned nearby."),
   ).toBeVisible();
   await expectNoSeriousAxeViolations(page);
 });
@@ -752,12 +947,46 @@ test("preserves full-page scrolling and navigation geometry across routes and vi
               ? Math.round(window.innerHeight - navRect.bottom)
               : null,
             dark: document.documentElement.classList.contains("dark"),
+            overflowingElements: Array.from(
+              document.querySelectorAll<HTMLElement>("body *"),
+            )
+              .filter(
+                (element) =>
+                  element.getBoundingClientRect().right >
+                  document.documentElement.clientWidth,
+              )
+              .slice(0, 6)
+              .map((element) => ({
+                tag: element.tagName,
+                className: element.className,
+                right: Math.round(element.getBoundingClientRect().right),
+                width: Math.round(element.getBoundingClientRect().width),
+              })),
+            forecastAncestors: (() => {
+              const chart = document.querySelector<HTMLElement>(
+                '[aria-label$="rain and temperature comparison"]',
+              );
+              const elements: HTMLElement[] = [];
+              let current = chart;
+              while (current && elements.length < 5) {
+                elements.push(current);
+                current = current.parentElement;
+              }
+              return elements.map((element) => ({
+                tag: element.tagName,
+                className: element.className,
+                width: Math.round(element.getBoundingClientRect().width),
+                scrollWidth: element.scrollWidth,
+                overflowX: getComputedStyle(element).overflowX,
+                minWidth: getComputedStyle(element).minWidth,
+              }));
+            })(),
           };
         });
 
         expect(
           metrics.overflow,
-          `${path} at ${viewport.width}px in ${theme}`,
+          `${path} at ${viewport.width}px in ${theme}: ${JSON.stringify({ overflowingElements: metrics.overflowingElements, forecastAncestors: metrics.forecastAncestors })}`,
         ).toBe(0);
         expect(metrics.dark).toBe(theme === "dark");
         if (viewport.width < 768) {
@@ -827,6 +1056,41 @@ for (const viewport of visualMatrix) {
         },
       );
     });
+  }
+}
+
+for (const route of ["my-land", "weather-water"] as const) {
+  for (const viewport of visualMatrix) {
+    for (const theme of ["light", "dark"] as const) {
+      test(`${route} visual lock · ${viewport.name} · ${theme}`, async ({
+        page,
+      }) => {
+        await page.setViewportSize(viewport);
+        if (route === "my-land") {
+          await page.clock.setFixedTime(new Date("2026-07-18T08:35:00.000Z"));
+        }
+        await setSavedFarm(page, { theme });
+        await installApiMocks(page, { land: "live", opw: "live" });
+        await page.goto(`/${route}`);
+        await expect(page.locator("h1")).toBeVisible();
+        await expect(page.locator("html")).toHaveClass(
+          theme === "dark" ? /dark/ : /light/,
+        );
+        await expect(page).toHaveScreenshot(
+          `${route}-${viewport.name}-${theme}.png`,
+          {
+            fullPage: true,
+            animations: "disabled",
+            caret: "hide",
+            mask:
+              route === "my-land"
+                ? [page.locator("[data-selected-parcel-id]")]
+                : [],
+            maxDiffPixelRatio: route === "my-land" ? 0 : 0.001,
+          },
+        );
+      });
+    }
   }
 }
 

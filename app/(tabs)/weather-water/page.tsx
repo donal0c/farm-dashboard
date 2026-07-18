@@ -3,23 +3,21 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
-  CloudRain,
-  CloudSun,
+  CircleAlert,
   Droplets,
   ExternalLink,
   Gauge,
   MapPin,
   ShieldAlert,
-  Sun,
   Wind,
 } from "lucide-react";
 import Link from "next/link";
 
+import { ForecastComparison } from "@/components/conditions/forecast-comparison";
 import { fetchValidatedSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
 import { type MetWarning, metWarningsSchema } from "@/lib/sources/met-warnings";
 import {
   type FarmForecast,
-  type ForecastDay,
   farmForecastSchema,
 } from "@/lib/sources/open-meteo";
 import {
@@ -29,25 +27,11 @@ import {
 import { useUiStore } from "@/lib/store/ui-store";
 import { cn } from "@/lib/utils";
 
-function formatDay(date: string) {
-  return new Intl.DateTimeFormat("en-IE", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  }).format(new Date(`${date}T12:00:00Z`));
-}
-
 function formatTime(date: string) {
   return new Intl.DateTimeFormat("en-IE", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(date));
-}
-
-function weatherIcon(code: number) {
-  if (code <= 1) return Sun;
-  if (code >= 51) return CloudRain;
-  return CloudSun;
 }
 
 function ConditionsPlaceholder() {
@@ -122,20 +106,32 @@ export default function WeatherWaterPage() {
   const readings = opwQuery.data?.data ?? [];
   const totalRain = days.reduce((sum, day) => sum + day.rainMm, 0);
   const peakGust = Math.max(...days.map((day) => day.windGustKph), 0);
+  const forecastUnavailable =
+    forecastQuery.isError || forecastQuery.data?.status === "unavailable";
+  const forecastPartial = forecastQuery.data?.status === "partial";
+  const warningsUnavailable =
+    warningsQuery.isError || warningsQuery.data?.status === "unavailable";
+  const warningsPartial = warningsQuery.data?.status === "partial";
+  const opwUnavailable =
+    opwQuery.isError || opwQuery.data?.status === "unavailable";
+  const rainScopeLabel =
+    forecastPartial && days.length
+      ? `Rain, ${days.length} validated days`
+      : "Seven-day rain";
 
   return (
-    <div>
+    <div className="min-w-0 overflow-x-clip">
       <header className="border-b border-border pb-7">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
           Conditions · {farmLocation.routingKey ?? farmLocation.label}
         </p>
         <h1 className="font-editorial mt-2 text-5xl font-medium tracking-[-0.035em] sm:text-6xl">
-          Weather at the pin
+          A working weather window
         </h1>
         <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">
-          A seven-day model forecast, current official warnings, and nearby OPW
-          sensor readings. Forecasts estimate conditions; sensors report their
-          own locations, not your fields.
+          Compare rain, temperature, wind and official notices before planning
+          field work. Forecasts are model estimates; nearby OPW sensors are raw
+          observations at their own locations, not measurements of your fields.
         </p>
       </header>
 
@@ -143,9 +139,13 @@ export default function WeatherWaterPage() {
         <div className="flex items-center gap-3">
           <Droplets className="h-5 w-5 text-info" />
           <div>
-            <p className="text-xs text-muted-foreground">Seven-day rain</p>
+            <p className="text-xs text-muted-foreground">{rainScopeLabel}</p>
             <p className="font-semibold">
-              {days.length ? `${totalRain.toFixed(1)} mm` : "Unavailable"}
+              {forecastQuery.isLoading
+                ? "Loading"
+                : days.length
+                  ? `${totalRain.toFixed(1)} mm`
+                  : "Unavailable"}
             </p>
           </div>
         </div>
@@ -154,7 +154,11 @@ export default function WeatherWaterPage() {
           <div>
             <p className="text-xs text-muted-foreground">Peak modelled gust</p>
             <p className="font-semibold">
-              {days.length ? `${peakGust.toFixed(0)} km/h` : "Unavailable"}
+              {forecastQuery.isLoading
+                ? "Loading"
+                : days.length
+                  ? `${peakGust.toFixed(0)} km/h`
+                  : "Unavailable"}
             </p>
           </div>
         </div>
@@ -163,7 +167,11 @@ export default function WeatherWaterPage() {
           <div>
             <p className="text-xs text-muted-foreground">Active notices</p>
             <p className="font-semibold">
-              {warningsQuery.isLoading ? "Loading" : warnings.length}
+              {warningsQuery.isLoading
+                ? "Loading"
+                : warningsUnavailable
+                  ? "Unavailable"
+                  : warnings.length}
             </p>
           </div>
         </div>
@@ -171,6 +179,16 @@ export default function WeatherWaterPage() {
 
       {warnings.length ? (
         <section className="border-b border-border py-7">
+          {warningsPartial ? (
+            <div className="mb-5 flex gap-2 border-l-2 border-warning bg-warning/10 px-4 py-3 text-sm">
+              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <p>
+                Partial warning feed:{" "}
+                {warningsQuery.data?.warning ??
+                  "Some source records were excluded."}
+              </p>
+            </div>
+          ) : null}
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-warning">
             Official notice
           </p>
@@ -202,78 +220,82 @@ export default function WeatherWaterPage() {
             </article>
           ))}
         </section>
-      ) : null}
+      ) : warningsQuery.isLoading ? null : (
+        <section className="flex items-start gap-3 border-b border-border py-5 text-sm">
+          <ShieldAlert
+            className={`mt-0.5 h-5 w-5 shrink-0 ${
+              warningsUnavailable ? "text-destructive" : "text-primary"
+            }`}
+          />
+          <div>
+            <p className="font-semibold">
+              {warningsUnavailable
+                ? "Official warning feed unavailable"
+                : warningsPartial
+                  ? "Official warning feed partially available"
+                  : "No active notices returned"}
+            </p>
+            <p className="mt-1 leading-6 text-muted-foreground">
+              {warningsUnavailable
+                ? "AgriView cannot confirm warning status. Check Met Éireann directly before weather-sensitive work."
+                : warningsPartial
+                  ? `${warningsQuery.data?.warning ?? "Some source records were excluded."} No active notice is shown from the validated records that remain. Check Met Éireann directly.`
+                  : "The national Met Éireann feed returned no active warning records at its latest check."}
+            </p>
+          </div>
+        </section>
+      )}
 
       <section className="border-b border-border py-8">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          Point forecast
+          Model estimate at the farm pin
         </p>
         <h2 className="font-editorial mt-1 text-3xl font-medium">
-          Seven-day outlook
+          Rain and temperature window
         </h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+          Use the shared daily scale to compare workable periods. High and low
+          temperatures share one range; rain bars share one rainfall scale.
+        </p>
         {forecastQuery.isLoading ? (
-          <p className="mt-5 text-sm text-muted-foreground">
-            Loading the current forecast…
-          </p>
-        ) : days.length ? (
-          <section
-            className="mt-5 overflow-x-auto border-y border-border"
-            aria-label="Seven-day forecast details"
-            // biome-ignore lint/a11y/noNoninteractiveTabindex: Keyboard users need to reach and scroll this overflow region.
-            tabIndex={0}
+          <output
+            className="mt-5 block animate-pulse border-y border-border py-5"
+            aria-label="Loading rain and temperature forecast"
           >
-            <div className="grid min-w-[760px] grid-cols-7">
-              {days.map((day: ForecastDay, index: number) => {
-                const Icon = weatherIcon(day.weatherCode);
-                return (
-                  <article
-                    key={day.date}
-                    className="border-r border-border px-3 py-5 last:border-r-0"
-                  >
-                    <p className="text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
-                      {index === 0 ? "Today" : formatDay(day.date)}
-                    </p>
-                    <Icon className="mt-4 h-6 w-6 text-primary" />
-                    <p className="font-editorial mt-3 text-3xl font-medium">
-                      {day.temperatureMaxC.toFixed(0)}°
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      low {day.temperatureMinC.toFixed(0)}°
-                    </p>
-                    <dl className="mt-4 grid gap-2 text-xs">
-                      <div>
-                        <dt className="text-muted-foreground">Rain</dt>
-                        <dd className="font-semibold">
-                          {day.rainMm.toFixed(1)} mm
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-muted-foreground">Chance</dt>
-                        <dd className="font-semibold">
-                          {day.precipitationProbability.toFixed(0)}%
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-muted-foreground">Gust</dt>
-                        <dd className="font-semibold">
-                          {day.windGustKph.toFixed(0)} km/h
-                        </dd>
-                      </div>
-                    </dl>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
+            <span className="block h-8 rounded bg-muted" />
+            <span className="mt-3 block h-52 rounded bg-muted" />
+          </output>
+        ) : days.length ? (
+          <>
+            {forecastPartial ? (
+              <div className="mt-5 flex gap-2 border-l-2 border-warning bg-warning/10 px-4 py-3 text-sm">
+                <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                <p>
+                  Partial forecast:{" "}
+                  {forecastQuery.data?.warning ??
+                    "Some source rows were excluded."}{" "}
+                  The chart shows only the {days.length} validated days
+                  returned.
+                </p>
+              </div>
+            ) : null}
+            <ForecastComparison days={days} />
+          </>
         ) : (
           <p className="mt-5 border-l-2 border-destructive py-2 pl-4 text-sm text-muted-foreground">
-            The forecast source is unavailable. No values have been substituted.
+            {forecastUnavailable
+              ? "The forecast source is unavailable. No values have been substituted."
+              : "The source returned no validated forecast days. No values have been substituted."}
           </p>
         )}
         <p className="mt-4 text-xs leading-5 text-muted-foreground">
           Open-Meteo model estimate at {farmLocation.latitude.toFixed(4)},{" "}
-          {farmLocation.longitude.toFixed(4)}. Confirm field conditions and the
-          latest local forecast immediately before weather-sensitive work.
+          {farmLocation.longitude.toFixed(4)}. Latest AgriView check:{" "}
+          {forecastQuery.data?.fetchedAt
+            ? formatTime(forecastQuery.data.fetchedAt)
+            : "not available"}
+          . Confirm field conditions and the latest local forecast immediately
+          before weather-sensitive work.
         </p>
       </section>
 
@@ -281,10 +303,10 @@ export default function WeatherWaterPage() {
         <div className="flex items-end justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Nearby water sensors
+              Latest raw observations
             </p>
             <h2 className="font-editorial mt-1 text-3xl font-medium">
-              OPW readings
+              Nearby OPW water readings
             </h2>
           </div>
           <a
@@ -297,11 +319,23 @@ export default function WeatherWaterPage() {
             <ExternalLink className="h-4 w-4" />
           </a>
         </div>
+        <div className="mt-4 flex max-w-3xl items-start gap-2 text-sm leading-6 text-muted-foreground">
+          <CircleAlert className="mt-1 h-4 w-4 shrink-0 text-info" />
+          <p>
+            AgriView currently retrieves each sensor’s latest validated
+            observation only. It does not infer a trend, normal range, warning
+            threshold, or flood risk from a single reading.
+          </p>
+        </div>
         <div className="mt-5 border-y border-border">
           {opwQuery.isLoading ? (
-            <p className="py-6 text-sm text-muted-foreground">
-              Finding nearby current sensors…
-            </p>
+            <output
+              className="block animate-pulse py-5"
+              aria-label="Loading nearby OPW sensor readings"
+            >
+              <span className="block h-14 rounded bg-muted" />
+              <span className="mt-2 block h-14 rounded bg-muted" />
+            </output>
           ) : readings.length ? (
             readings.slice(0, 6).map((reading, index) => (
               <article
@@ -333,7 +367,9 @@ export default function WeatherWaterPage() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Observed</p>
+                  <p className="text-xs text-muted-foreground">
+                    Latest observation
+                  </p>
                   <p className="text-xs font-semibold">
                     {formatTime(reading.observedAt)}
                   </p>
@@ -341,15 +377,30 @@ export default function WeatherWaterPage() {
               </article>
             ))
           ) : (
-            <p className="py-6 text-sm text-muted-foreground">
-              Current OPW readings are unavailable.
-            </p>
+            <div className="py-6 text-sm">
+              <p
+                className={
+                  opwUnavailable
+                    ? "font-semibold text-destructive"
+                    : "font-semibold"
+                }
+              >
+                {opwUnavailable
+                  ? "Current OPW readings are temporarily unavailable."
+                  : "No validated current OPW readings were returned nearby."}
+              </p>
+              <p className="mt-1 leading-6 text-muted-foreground">
+                {opwUnavailable
+                  ? "The request failed; AgriView has not presented that as an empty sensor result."
+                  : "This is a valid empty response for the search around your farm pin."}
+              </p>
+            </div>
           )}
         </div>
         <p className="mt-4 text-xs leading-5 text-muted-foreground">
-          Water levels are shown without an inferred safe, warning, or flood
-          threshold. Open the official station record and local guidance before
-          interpreting risk.
+          Observations are ordered by distance to the saved pin, not by risk.
+          Open the official station record and local guidance before
+          interpreting a water level.
         </p>
       </section>
     </div>
