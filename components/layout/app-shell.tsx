@@ -1,16 +1,20 @@
 "use client";
 
 import {
+  BookOpenText,
   CalendarDays,
   ChartNoAxesCombined,
   CloudSun,
+  Ellipsis,
   LandPlot,
   Leaf,
   Settings2,
   SlidersHorizontal,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useUiStore } from "@/lib/store/ui-store";
@@ -99,6 +103,126 @@ function NavLink({
       />
       {label}
     </Link>
+  );
+}
+
+function MobileMoreMenu() {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const moreIsActive =
+    secondaryNav.some((item) => item.href === pathname) ||
+    pathname === "/methodology";
+
+  useEffect(() => {
+    if (!open) return;
+    panelRef.current?.querySelector<HTMLAnchorElement>("a")?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [open]);
+
+  const close = () => setOpen(false);
+
+  return (
+    <>
+      {open ? (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <button
+            type="button"
+            aria-label="Close more menu"
+            tabIndex={-1}
+            className="absolute inset-0 bg-foreground/28"
+            onClick={() => {
+              close();
+              triggerRef.current?.focus();
+            }}
+          />
+          <div
+            id="mobile-more-menu"
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mobile-more-title"
+            className="absolute inset-x-3 bottom-[calc(4.7rem+env(safe-area-inset-bottom))] rounded-lg border border-border bg-background p-3 shadow-xl"
+          >
+            <div className="flex items-center justify-between border-b border-border px-2 pb-2">
+              <p
+                id="mobile-more-title"
+                className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground"
+              >
+                More evidence
+              </p>
+              <button
+                type="button"
+                aria-label="Close more menu"
+                onClick={() => {
+                  close();
+                  triggerRef.current?.focus();
+                }}
+                className="grid min-h-11 min-w-11 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <nav aria-label="More navigation" className="grid gap-1 pt-2">
+              {secondaryNav.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={close}
+                    aria-current={pathname === item.href ? "page" : undefined}
+                    className="flex min-h-12 items-center gap-3 rounded-md px-3 text-sm font-semibold hover:bg-muted"
+                  >
+                    <Icon className="h-5 w-5 text-primary" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+              <Link
+                href="/my-land#farm-settings"
+                onClick={close}
+                className="flex min-h-12 items-center gap-3 rounded-md px-3 text-sm font-semibold hover:bg-muted"
+              >
+                <Settings2 className="h-5 w-5 text-primary" />
+                Farm settings
+              </Link>
+              <Link
+                href="/methodology"
+                onClick={close}
+                aria-current={pathname === "/methodology" ? "page" : undefined}
+                className="flex min-h-12 items-center gap-3 rounded-md px-3 text-sm font-semibold hover:bg-muted"
+              >
+                <BookOpenText className="h-5 w-5 text-primary" />
+                Methodology
+              </Link>
+            </nav>
+          </div>
+        </div>
+      ) : null}
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-expanded={open}
+        aria-controls="mobile-more-menu"
+        onClick={() => setOpen((current) => !current)}
+        className={cn(
+          "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-[10px] font-semibold",
+          moreIsActive ? "text-primary" : "text-muted-foreground",
+        )}
+      >
+        <Ellipsis className="h-5 w-5" />
+        More
+      </button>
+    </>
   );
 }
 
@@ -204,19 +328,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           );
         })}
-        <Link
-          href="/markets-income"
-          aria-current={pathname === "/markets-income" ? "page" : undefined}
-          className={cn(
-            "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-[10px] font-semibold",
-            pathname === "/markets-income"
-              ? "text-primary"
-              : "text-muted-foreground",
-          )}
-        >
-          <ChartNoAxesCombined className="h-5 w-5" />
-          Markets
-        </Link>
+        <MobileMoreMenu />
       </nav>
     </div>
   );

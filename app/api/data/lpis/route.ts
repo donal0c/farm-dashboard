@@ -40,7 +40,7 @@ export async function GET(request: Request) {
 
   try {
     const response = await fetch(url, {
-      next: { revalidate: 24 * 60 * 60 },
+      cache: "no-store",
       signal: AbortSignal.timeout(10_000),
     });
     if (!response.ok) {
@@ -50,6 +50,12 @@ export async function GET(request: Request) {
       normalizeLpisCollection(
         (await response.json()) as GeoJSON.FeatureCollection,
       ),
+      {
+        headers: {
+          "Cache-Control":
+            "public, s-maxage=86400, stale-while-revalidate=604800",
+        },
+      },
     );
   } catch (error) {
     return NextResponse.json(

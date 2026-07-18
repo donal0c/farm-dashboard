@@ -20,7 +20,9 @@ permission, or legal compliance.
    **Environment** only when the decision needs more context.
 
 The farm profile is stored in the current browser with Zustand. There is no
-account, database, analytics SDK, advertising tracker, or AI model.
+account, database, analytics SDK, advertising tracker, or AI model. The saved
+coordinate is sent to the app’s data routes when point or nearby evidence is
+requested; no server-side user profile is created.
 
 ## What is live
 
@@ -74,6 +76,7 @@ npm run lint
 npx tsc --noEmit
 npm test
 npm run check:sources
+npm run check:routes # with the app running locally
 npm run build
 npm audit
 ```
@@ -81,6 +84,10 @@ npm audit
 `npm run check:sources` validates ten upstream contracts without writing or
 repairing external state. The same report-only check runs weekly and on demand
 in `.github/workflows/source-contracts.yml`.
+
+`npm run check:routes` exercises the six product pages, every decision-bearing
+API route, and an invalid-coordinate guard against `http://localhost:3000`.
+Set `ROUTE_CHECK_BASE_URL` to check another unprotected release candidate.
 
 ## Important limitations
 

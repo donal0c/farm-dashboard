@@ -39,6 +39,10 @@ function sourceAge(value: string | undefined) {
   );
 }
 
+function parcelReference(id: string) {
+  return id.length > 16 ? `Parcel …${id.slice(-8)}` : `Parcel ${id}`;
+}
+
 export default function MyLandPage() {
   const farmLocation = useUiStore((state) => state.farmLocation);
   const setFarmLocation = useUiStore((state) => state.setFarmLocation);
@@ -117,6 +121,8 @@ export default function MyLandPage() {
   }, [lpisQuery.data]);
   const visibleParcels = parcels.slice(0, 8);
   const totalArea = parcels.reduce((sum, parcel) => sum + parcel.area, 0);
+  const lpisFeatureLimitReached =
+    (lpisQuery.data?.data?.features.length ?? 0) >= 500;
   const stockingRates = Array.from(
     new Set(
       (nitratesQuery.data?.data?.features ?? [])
@@ -222,7 +228,9 @@ export default function MyLandPage() {
           <p className="text-muted-foreground">LPIS source</p>
           <p className="mt-1 font-semibold">
             {lpisQuery.data?.status === "live"
-              ? `${parcels.length} nearby parcels`
+              ? lpisFeatureLimitReached
+                ? `${parcels.length} unique · 500-feature limit`
+                : `${parcels.length} nearby parcels`
               : lpisQuery.isLoading
                 ? "Loading"
                 : "Unavailable"}
@@ -331,7 +339,7 @@ export default function MyLandPage() {
                       {parcel.crop}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {parcel.id}
+                      {parcelReference(parcel.id)}
                     </p>
                   </div>
                   <p className="text-sm">{parcel.area.toFixed(2)} ha</p>

@@ -54,7 +54,7 @@ describe("deterministic weekly briefing", () => {
     );
   });
 
-  it("places an active official warning ahead of a modelled work window", () => {
+  it("keeps a Yellow warning behind an actionable field window", () => {
     const warnings = normalizeMetWarnings(
       [
         {
@@ -77,8 +77,36 @@ describe("deterministic weekly briefing", () => {
       now: new Date("2026-07-18T08:00:00Z"),
     });
 
-    assert.equal(brief.items[0].id, "weather-warning");
+    assert.equal(brief.items[0].id, "field-window");
+    assert.equal(brief.items[1].id, "weather-warning");
     assert.equal(brief.items.length, 3);
     assert.equal(brief.items.at(-1)?.id, "compliance-check");
+  });
+
+  it("promotes an Orange warning ahead of a modelled work window", () => {
+    const warnings = normalizeMetWarnings(
+      [
+        {
+          id: 2,
+          level: "Orange",
+          headline: "Orange Wind Warning",
+          description: "Dangerous travel and exposed-work conditions.",
+          issued: "2026-07-17T22:30:00Z",
+          onset: "2026-07-17T22:30:00Z",
+          expiry: "2026-07-20T23:00:00Z",
+        },
+      ],
+      new Date("2026-07-18T08:00:00Z"),
+    );
+    const brief = deriveWeeklyBrief({
+      forecast: forecast([0, 0, 0.2, 0, 0, 0, 0], [20, 18, 21, 30, 20, 19, 18]),
+      warnings,
+      enterprise: "beef",
+      focus: "grazing",
+      now: new Date("2026-07-18T08:00:00Z"),
+    });
+
+    assert.equal(brief.items[0].id, "weather-warning");
+    assert.equal(brief.items[0].priority, "act");
   });
 });

@@ -31,7 +31,6 @@ export function normalizeLpisCollection(
       original.PAR_LAB ?? original.LNU_PARCEL_ID ?? feature.id ?? index,
     );
     const properties: NormalizedLpisProperties = {
-      ...original,
       parcelId,
       cropCode: original.CROP ? String(original.CROP) : null,
       digitisedAreaHa: nullableNumber(original.DIGITISED),
@@ -41,7 +40,12 @@ export function normalizeLpisCollection(
       organic: String(original.ORGANICS ?? "").toUpperCase() === "Y",
     };
 
-    return { ...feature, properties };
+    return {
+      type: "Feature" as const,
+      id: feature.id,
+      geometry: feature.geometry,
+      properties,
+    };
   });
   const fetchedIso = fetchedAt.toISOString();
 

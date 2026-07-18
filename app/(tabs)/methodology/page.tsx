@@ -23,8 +23,10 @@ export default function MethodologyPage() {
           </h2>
           <p className="mt-3">
             Routing-key search only centres an approximate area. The point you
-            save manually is used for nearby requests and remains in this
-            browser; it is not an official property or Eircode lookup.
+            save manually remains in this browser as your profile; its
+            coordinate is sent to AgriView’s data routes when the app loads
+            point or nearby evidence. There is no server-side user profile. The
+            point is not an official property or Eircode lookup.
           </p>
         </section>
         <section>

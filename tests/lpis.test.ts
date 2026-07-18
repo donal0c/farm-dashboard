@@ -30,6 +30,7 @@ describe("LPIS normalization", () => {
               REF_AREA: 4.1,
               COMM_IND: "N",
               ORGANICS: "Y",
+              SOURCE_ONLY_FIELD: "must not reach the browser",
             },
           },
         ],
@@ -41,6 +42,7 @@ describe("LPIS normalization", () => {
     assert.equal(properties?.parcelId, "parcel-1");
     assert.equal(properties?.digitisedAreaHa, 4.2);
     assert.equal(properties?.organic, true);
+    assert.equal(properties?.SOURCE_ONLY_FIELD, undefined);
     assert.match(snapshot.source.label, /2024/);
   });
 });

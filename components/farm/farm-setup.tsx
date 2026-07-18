@@ -1,6 +1,7 @@
 "use client";
 
 import { LocateFixed, MapPin, Search } from "lucide-react";
+import { useTheme } from "next-themes";
 import { useMemo, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 import MapView, { Marker } from "react-map-gl/maplibre";
@@ -8,7 +9,7 @@ import MapView, { Marker } from "react-map-gl/maplibre";
 import { Button } from "@/components/ui/button";
 import routingKeys from "@/lib/data/eircode-routing-keys.json";
 import { enterpriseOptions, weekFocusOptions } from "@/lib/farm-plan";
-import { farmMapColors, farmMapStyle } from "@/lib/map/style";
+import { farmMapColors, farmMapStyles } from "@/lib/map/style";
 import {
   type FarmEnterprise,
   type FarmWeekFocus,
@@ -34,9 +35,11 @@ function countyFromDescription(description: string) {
 }
 
 export function FarmSetup() {
+  const { resolvedTheme } = useTheme();
   const [query, setQuery] = useState("");
   const [selectedArea, setSelectedArea] = useState<RoutingKey | null>(null);
   const [pin, setPin] = useState<LatLng | null>(null);
+  const [hasPlacedPin, setHasPlacedPin] = useState(false);
   const [viewState, setViewState] = useState({
     ...irelandCenter,
     zoom: 6.2,
@@ -71,6 +74,7 @@ export function FarmSetup() {
       if (!response.ok) return;
       const location = (await response.json()) as LatLng;
       setPin(location);
+      setHasPlacedPin(false);
       setViewState({ ...location, zoom: 10.5 });
     } finally {
       setIsLocating(false);
@@ -78,7 +82,7 @@ export function FarmSetup() {
   };
 
   const saveFarm = () => {
-    if (!pin) return;
+    if (!pin || !hasPlacedPin) return;
     setFarmLocation({
       ...pin,
       label: selectedArea?.description ?? "Pinned farm location",
@@ -100,8 +104,9 @@ export function FarmSetup() {
           Where is your farm?
         </h1>
         <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
-          Choose a routing area, then place the pin on the farm. AgriView stores
-          this only in this browser and uses it to find nearby evidence.
+          Choose a routing area, then place the pin on the farm. The saved
+          profile stays in this browser; the point is sent to AgriView’s data
+          routes when you load nearby evidence.
         </p>
       </div>
 
@@ -120,7 +125,13 @@ export function FarmSetup() {
               <input
                 id="farm-area"
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setSelectedArea(null);
+                  if (!hasPlacedPin) {
+                    setPin(null);
+                  }
+                }}
                 placeholder="Try H91, A92, Clonmel…"
                 autoComplete="postal-code"
                 className="min-h-11 w-full rounded-md border border-input bg-card pl-10 pr-3 text-base"
@@ -155,9 +166,11 @@ export function FarmSetup() {
               <span>
                 {isLocating
                   ? "Finding the routing area…"
-                  : pin
-                    ? "Click the map to refine the pin"
-                    : "Choose an area or place the pin manually"}
+                  : pin && !hasPlacedPin
+                    ? "Approximate area centre — click the map to place your farm pin"
+                    : hasPlacedPin
+                      ? "Farm pin placed"
+                      : "Choose an area or place the pin manually"}
               </span>
               {pin ? (
                 <span>
@@ -167,15 +180,20 @@ export function FarmSetup() {
             </div>
             <div className="h-[340px]">
               <MapView
-                mapStyle={farmMapStyle}
+                mapStyle={
+                  resolvedTheme === "dark"
+                    ? farmMapStyles.dark
+                    : farmMapStyles.light
+                }
                 {...viewState}
                 onMove={(event) => setViewState(event.viewState)}
-                onClick={(event) =>
+                onClick={(event) => {
                   setPin({
                     latitude: event.lngLat.lat,
                     longitude: event.lngLat.lng,
-                  })
-                }
+                  });
+                  setHasPlacedPin(true);
+                }}
                 cursor="crosshair"
                 cooperativeGestures
               >
@@ -186,7 +204,11 @@ export function FarmSetup() {
                       color={farmMapColors.pin}
                       fill="#f7f3e8"
                       strokeWidth={1.8}
-                      aria-label="Selected farm point"
+                      aria-label={
+                        hasPlacedPin
+                          ? "Selected farm point"
+                          : "Approximate area centre"
+                      }
                     />
                   </Marker>
                 ) : null}
@@ -244,8 +266,11 @@ export function FarmSetup() {
           <Button
             type="button"
             onClick={saveFarm}
-            disabled={!pin}
-            className={cn("w-full gap-2", !pin && "cursor-not-allowed")}
+            disabled={!pin || !hasPlacedPin}
+            className={cn(
+              "w-full gap-2",
+              (!pin || !hasPlacedPin) && "cursor-not-allowed",
+            )}
           >
             <LocateFixed className="h-4 w-4" />
             Use this farm

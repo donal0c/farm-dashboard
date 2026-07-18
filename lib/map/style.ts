@@ -1,38 +1,55 @@
 import type { StyleSpecification } from "maplibre-gl";
 
-export const farmMapStyle: StyleSpecification = {
-  version: 8,
-  name: "AgriView field map",
-  sources: {
-    "agriview-base": {
-      type: "raster",
-      tiles: [
-        "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
-        "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
-      ],
-      tileSize: 512,
-      attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
-    },
-  },
-  layers: [
-    {
-      id: "agriview-paper",
-      type: "background",
-      paint: { "background-color": "#ece9dc" },
-    },
-    {
-      id: "agriview-base",
-      type: "raster",
-      source: "agriview-base",
-      paint: {
-        "raster-saturation": -0.58,
-        "raster-contrast": 0.08,
-        "raster-brightness-min": 0.08,
-        "raster-brightness-max": 0.94,
+function createFarmMapStyle(mode: "light" | "dark"): StyleSpecification {
+  const dark = mode === "dark";
+  const tileTheme = dark ? "dark_all" : "light_all";
+
+  return {
+    version: 8,
+    name: `AgriView field map · ${mode}`,
+    sources: {
+      "agriview-base": {
+        type: "raster",
+        tiles: [
+          `https://a.basemaps.cartocdn.com/${tileTheme}/{z}/{x}/{y}@2x.png`,
+          `https://b.basemaps.cartocdn.com/${tileTheme}/{z}/{x}/{y}@2x.png`,
+        ],
+        tileSize: 512,
+        attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
       },
     },
-  ],
-};
+    layers: [
+      {
+        id: "agriview-paper",
+        type: "background",
+        paint: { "background-color": dark ? "#08110c" : "#ece9dc" },
+      },
+      {
+        id: "agriview-base",
+        type: "raster",
+        source: "agriview-base",
+        paint: dark
+          ? {
+              "raster-saturation": -0.45,
+              "raster-contrast": 0.08,
+              "raster-brightness-min": 0.02,
+              "raster-brightness-max": 0.72,
+            }
+          : {
+              "raster-saturation": -0.58,
+              "raster-contrast": 0.08,
+              "raster-brightness-min": 0.08,
+              "raster-brightness-max": 0.94,
+            },
+      },
+    ],
+  };
+}
+
+export const farmMapStyles = {
+  light: createFarmMapStyle("light"),
+  dark: createFarmMapStyle("dark"),
+} as const;
 
 export const farmMapColors = {
   pin: "#315f45",

@@ -2,9 +2,10 @@
 
 import "maplibre-gl/dist/maplibre-gl.css";
 
+import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import MapView, { Layer, Marker, Source } from "react-map-gl/maplibre";
-import { farmMapColors, farmMapStyle } from "@/lib/map/style";
+import { farmMapColors, farmMapStyles } from "@/lib/map/style";
 
 type LatLng = { latitude: number; longitude: number };
 
@@ -24,6 +25,7 @@ export function IrelandMap({
   lpisGeoJson,
   showSoilLayer,
 }: IrelandMapProps) {
+  const { resolvedTheme } = useTheme();
   const [viewState, setViewState] = useState({
     longitude: center.longitude,
     latitude: center.latitude,
@@ -41,7 +43,9 @@ export function IrelandMap({
   return (
     <div className="h-[420px] w-full overflow-hidden rounded-lg border border-border">
       <MapView
-        mapStyle={farmMapStyle}
+        mapStyle={
+          resolvedTheme === "dark" ? farmMapStyles.dark : farmMapStyles.light
+        }
         {...viewState}
         maxBounds={[
           [-11.2, 51],

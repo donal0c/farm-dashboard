@@ -48,6 +48,13 @@ function warningSummary(description: string) {
     : firstSection;
 }
 
+function briefRank(item: BriefItem) {
+  if (item.id === "weather-warning" && item.priority === "act") return 0;
+  if (item.priority === "act") return 1;
+  if (item.priority === "check") return 2;
+  return 3;
+}
+
 export function deriveWeeklyBrief({
   forecast,
   warnings,
@@ -159,9 +166,14 @@ export function deriveWeeklyBrief({
     relevantDates: [],
   });
 
-  const finalItem = items.at(-1);
+  const rankedItems = [...items].sort(
+    (left, right) => briefRank(left) - briefRank(right),
+  );
+  const finalItem = rankedItems.at(-1);
   const finalItems =
-    items.length > 3 && finalItem ? [items[0], items[1], finalItem] : items;
+    rankedItems.length > 3 && finalItem
+      ? [rankedItems[0], rankedItems[1], finalItem]
+      : rankedItems;
 
   return {
     generatedAt: now.toISOString(),
@@ -178,7 +190,7 @@ export function deriveWeeklyBrief({
               scope: warnings.scope,
               confidence: warnings.confidence,
               explanation:
-                "Active official warnings are placed ahead of model-derived work windows.",
+                "Active Red or Orange warnings are promoted to Act; Yellow warnings remain a Check alongside model-derived work windows.",
             },
           ]
         : []),

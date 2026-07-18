@@ -55,7 +55,11 @@ There is no server-side user profile.
 
 - Open-Meteo and Met Éireann: cached near their update cadence.
 - OPW: 15-minute route revalidation.
-- DAFM LPIS, nitrates, and EPA WFD: 24-hour route revalidation.
+- DAFM LPIS: the oversized raw payload bypasses Next’s 2 MB data cache,
+  is normalized to seven stable properties, then the smaller route response is
+  cached for 24 hours with stale-while-revalidate.
+- DAFM nitrates and EPA WFD: 24-hour route revalidation after geometry/property
+  projection keeps browser payloads compact.
 - CAP: the large annual payload is parsed and aggregated once per cache window;
   clients receive county aggregates, never the raw beneficiary file.
 - CSO: clients load only AEA01 and, for a specific enterprise, AHM05.
