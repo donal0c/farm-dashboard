@@ -2,13 +2,12 @@ import { NextResponse } from "next/server";
 
 import { boundingBox, isIrishCoordinate } from "@/lib/contracts/geo";
 import { unavailableSnapshot } from "@/lib/contracts/source-snapshot";
-import { LPIS_COLLECTION, normalizeLpisCollection } from "@/lib/sources/lpis";
-
-const source = {
-  id: "dafm-lpis-2024",
-  label: "DAFM LPIS 2024",
-  url: `https://geoapi.opendata.agriculture.gov.ie/shps/collections/${LPIS_COLLECTION}`,
-};
+import { fetchValidated } from "@/lib/server/fetch-validated";
+import {
+  LPIS_SOURCE,
+  lpisPayloadSchema,
+  normalizeLpisCollection,
+} from "@/lib/sources/lpis";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -33,34 +32,29 @@ export async function GET(request: Request) {
     );
   }
 
-  const url = new URL(`${source.url}/items`);
+  const url = new URL(`${LPIS_SOURCE.url}/items`);
   url.searchParams.set("f", "json");
   url.searchParams.set("bbox", bbox.join(","));
   url.searchParams.set("limit", "500");
 
   try {
-    const response = await fetch(url, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(10_000),
+    const { data } = await fetchValidated(url, {
+      sourceId: LPIS_SOURCE.id,
+      schema: lpisPayloadSchema,
+      timeoutMs: 10_000,
+      maxAttempts: 2,
+      init: { cache: "no-store" },
     });
-    if (!response.ok) {
-      throw new Error(`DAFM LPIS returned ${response.status}.`);
-    }
-    return NextResponse.json(
-      normalizeLpisCollection(
-        (await response.json()) as GeoJSON.FeatureCollection,
-      ),
-      {
-        headers: {
-          "Cache-Control":
-            "public, s-maxage=86400, stale-while-revalidate=604800",
-        },
+    return NextResponse.json(normalizeLpisCollection(data), {
+      headers: {
+        "Cache-Control":
+          "public, s-maxage=86400, stale-while-revalidate=604800",
       },
-    );
+    });
   } catch (error) {
     return NextResponse.json(
       unavailableSnapshot<GeoJSON.FeatureCollection>({
-        source,
+        source: LPIS_SOURCE,
         scope: "nearby",
         staleAfter: new Date().toISOString(),
         warning:

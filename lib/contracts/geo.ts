@@ -1,7 +1,14 @@
+import { z } from "zod";
+
 export type LatLng = {
   latitude: number;
   longitude: number;
 };
+
+export const latLngSchema = z.object({
+  latitude: z.number().finite(),
+  longitude: z.number().finite(),
+});
 
 export const IRELAND_BOUNDS = {
   minLatitude: 51.2,

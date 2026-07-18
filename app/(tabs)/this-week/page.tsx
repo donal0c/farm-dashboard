@@ -18,10 +18,14 @@ import { EvidencePanel } from "@/components/briefing/evidence-panel";
 import { FarmSetup } from "@/components/farm/farm-setup";
 import { deriveWeeklyBrief } from "@/lib/briefing/derive-weekly-brief";
 import type { BriefItem } from "@/lib/briefing/types";
-import { fetchSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
+import { fetchValidatedSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
 import { enterpriseLabels, weekFocusLabels } from "@/lib/farm-plan";
-import type { MetWarning } from "@/lib/sources/met-warnings";
-import type { FarmForecast, ForecastDay } from "@/lib/sources/open-meteo";
+import { type MetWarning, metWarningsSchema } from "@/lib/sources/met-warnings";
+import {
+  type FarmForecast,
+  type ForecastDay,
+  farmForecastSchema,
+} from "@/lib/sources/open-meteo";
 import { useUiStore } from "@/lib/store/ui-store";
 import { cn } from "@/lib/utils";
 
@@ -158,8 +162,9 @@ export default function ThisWeekPage() {
       farmLocation?.longitude,
     ],
     queryFn: () =>
-      fetchSourceSnapshot<FarmForecast>(
+      fetchValidatedSourceSnapshot<FarmForecast>(
         `/api/data/forecast?lat=${farmLocation?.latitude}&lng=${farmLocation?.longitude}`,
+        farmForecastSchema,
       ),
     enabled: Boolean(farmLocation),
     staleTime: 30 * 60 * 1000,
@@ -167,7 +172,11 @@ export default function ThisWeekPage() {
   });
   const warningsQuery = useQuery({
     queryKey: ["met-warnings"],
-    queryFn: () => fetchSourceSnapshot<MetWarning[]>("/api/data/met/warnings"),
+    queryFn: () =>
+      fetchValidatedSourceSnapshot<MetWarning[]>(
+        "/api/data/met/warnings",
+        metWarningsSchema,
+      ),
     staleTime: 10 * 60 * 1000,
     retry: 1,
   });
@@ -180,9 +189,16 @@ export default function ThisWeekPage() {
             warnings: warningsQuery.data,
             enterprise,
             focus: weekFocus,
+            region: farmLocation?.county,
           })
         : null,
-    [enterprise, forecastQuery.data, warningsQuery.data, weekFocus],
+    [
+      enterprise,
+      farmLocation?.county,
+      forecastQuery.data,
+      warningsQuery.data,
+      weekFocus,
+    ],
   );
 
   const evidence =
@@ -192,6 +208,7 @@ export default function ThisWeekPage() {
     forecastQuery.isError || forecastQuery.data?.status === "unavailable";
   const warningsUnavailable =
     warningsQuery.isError || warningsQuery.data?.status === "unavailable";
+  const forecastPartial = forecastQuery.data?.status === "partial";
   const forecastEmpty = Boolean(forecastQuery.data?.data) && days.length === 0;
 
   if (!hasHydrated) {
@@ -301,6 +318,24 @@ export default function ThisWeekPage() {
           </section>
         ) : (
           <>
+            {forecastPartial ? (
+              <section
+                aria-live="polite"
+                className="mt-7 border-l-2 border-warning bg-warning/10 px-5 py-4"
+              >
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-warning">
+                  Partial forecast coverage
+                </p>
+                <h2 className="font-editorial mt-2 text-2xl font-medium">
+                  Incomplete days were excluded.
+                </h2>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+                  {forecastQuery.data.warning ??
+                    "The brief uses only complete forecast days; missing values were not converted to zero."}
+                </p>
+              </section>
+            ) : null}
+
             {warningsUnavailable ? (
               <section
                 aria-live="polite"

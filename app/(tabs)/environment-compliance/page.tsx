@@ -13,14 +13,11 @@ import {
 import Link from "next/link";
 import { useMemo } from "react";
 
-import type { SourceSnapshot } from "@/lib/contracts/source-snapshot";
+import { fetchValidatedSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
+import { featureCollectionContract } from "@/lib/contracts/geojson";
+import { type WfdStatusData, wfdStatusDataSchema } from "@/lib/sources/epa-wfd";
 import { useUiStore } from "@/lib/store/ui-store";
 import { cn } from "@/lib/utils";
-
-type WfdStatusData = {
-  rivers: GeoJSON.FeatureCollection;
-  groundwater: GeoJSON.FeatureCollection;
-};
 
 type Waterbody = {
   id: string;
@@ -58,12 +55,11 @@ export default function EnvironmentCompliancePage() {
 
   const wfdQuery = useQuery({
     queryKey: ["wfd-status", farmLocation?.latitude, farmLocation?.longitude],
-    queryFn: async () => {
-      const response = await fetch(
+    queryFn: () =>
+      fetchValidatedSourceSnapshot<WfdStatusData>(
         `/api/data/epa/wfd-status?lat=${farmLocation?.latitude}&lng=${farmLocation?.longitude}&radius=0.1`,
-      );
-      return (await response.json()) as SourceSnapshot<WfdStatusData>;
-    },
+        wfdStatusDataSchema,
+      ),
     enabled: Boolean(farmLocation),
   });
   const nitratesQuery = useQuery({
@@ -73,12 +69,11 @@ export default function EnvironmentCompliancePage() {
       farmLocation?.longitude,
       "environment",
     ],
-    queryFn: async () => {
-      const response = await fetch(
+    queryFn: () =>
+      fetchValidatedSourceSnapshot<GeoJSON.FeatureCollection>(
         `/api/data/nitrates?lat=${farmLocation?.latitude}&lng=${farmLocation?.longitude}&radius=0.2`,
-      );
-      return (await response.json()) as SourceSnapshot<GeoJSON.FeatureCollection>;
-    },
+        featureCollectionContract,
+      ),
     enabled: Boolean(farmLocation),
   });
 

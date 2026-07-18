@@ -3,7 +3,7 @@ import { z } from "zod";
 export type SourceStatus =
   | "live"
   | "cached"
-  | "fallback"
+  | "partial"
   | "stale"
   | "unavailable";
 
@@ -36,21 +36,84 @@ export type SourceSnapshot<T> = {
   confidence: SourceConfidence;
 };
 
-export const sourceSnapshotEnvelopeSchema = z.object({
-  data: z.unknown().nullable(),
-  source: z.object({
-    id: z.string().min(1),
-    label: z.string().min(1),
-    url: z.string().min(1),
-  }),
-  scope: z.enum(["farm", "nearby", "county", "regional", "national"]),
-  status: z.enum(["live", "cached", "fallback", "stale", "unavailable"]),
-  observedAt: z.string().min(1).nullable(),
-  fetchedAt: z.string().min(1),
-  staleAfter: z.string().min(1),
-  warning: z.string().nullable(),
-  confidence: z.enum(["authoritative", "screening", "estimate", "sample"]),
-});
+const timestampSchema = z
+  .string()
+  .min(1)
+  .refine((value) => Number.isFinite(Date.parse(value)), "Invalid timestamp.");
+
+export const sourceSnapshotEnvelopeSchema = z
+  .object({
+    data: z.unknown().nullable(),
+    source: z.object({
+      id: z.string().min(1),
+      label: z.string().min(1),
+      url: z.string().min(1),
+    }),
+    scope: z.enum(["farm", "nearby", "county", "regional", "national"]),
+    status: z.enum(["live", "cached", "partial", "stale", "unavailable"]),
+    observedAt: timestampSchema.nullable(),
+    fetchedAt: timestampSchema,
+    staleAfter: timestampSchema,
+    warning: z.string().nullable(),
+    confidence: z.enum(["authoritative", "screening", "estimate", "sample"]),
+  })
+  .superRefine((snapshot, context) => {
+    if (snapshot.status === "unavailable" && snapshot.data !== null) {
+      context.addIssue({
+        code: "custom",
+        message: "Unavailable snapshots must have null data.",
+      });
+    }
+  });
+
+type AvailableSourceStatus = Exclude<SourceStatus, "unavailable">;
+
+export function availableSnapshot<T>({
+  data,
+  source,
+  scope,
+  status,
+  observedAt,
+  fetchedAt,
+  staleAfter,
+  warning,
+  confidence,
+}: SourceSnapshot<T> & {
+  data: T;
+  status: AvailableSourceStatus;
+}): SourceSnapshot<T> {
+  return {
+    data,
+    source,
+    scope,
+    status,
+    observedAt,
+    fetchedAt,
+    staleAfter,
+    warning,
+    confidence,
+  };
+}
+
+export function applyFreshnessStatus<T>(
+  snapshot: SourceSnapshot<T>,
+  now = new Date(),
+): SourceSnapshot<T> {
+  if (
+    snapshot.status === "unavailable" ||
+    snapshot.status === "stale" ||
+    Date.parse(snapshot.staleAfter) > now.getTime()
+  ) {
+    return snapshot;
+  }
+  return {
+    ...snapshot,
+    status: "stale",
+    warning: [snapshot.warning, "The source freshness window has elapsed."]
+      .filter(Boolean)
+      .join(" "),
+  };
+}
 
 export function unavailableSnapshot<T>({
   source,

@@ -69,9 +69,10 @@ public services.
 
 ## Degraded-state policy
 
-`SourceSnapshot<T>` distinguishes `live`, `cached`, `fallback`, `stale`, and
-`unavailable`, though current decision surfaces use live/cached/unavailable and
-do not ship sample fallbacks.
+`SourceSnapshot<T>` distinguishes `live`, `cached`, `partial`, `stale`, and
+`unavailable`. `partial` means validated rows remain usable but incomplete rows
+were excluded; it is never labelled current. AgriView does not ship sample
+fallbacks.
 
 An unavailable source:
 
@@ -79,6 +80,12 @@ An unavailable source:
 - does not silently use a static extract;
 - cannot produce a decision priority that depends on its missing value;
 - retains the official source and a useful warning when possible.
+
+Transient upstream requests may make one bounded retry for timeout, transport,
+408, 425, 429, or 5xx responses. `Retry-After` is respected with a two-second
+cap; contract failures and ordinary 4xx responses are never retried. Next/Vercel
+cache revalidation is the current last-known-good mechanism. There is no durable
+cross-deployment source cache, and the UI must not imply otherwise.
 
 ## Why there is no AI layer
 

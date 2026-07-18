@@ -9,6 +9,7 @@ const pageRoutes = [
   "/calendar",
   "/markets-income",
   "/environment-compliance",
+  "/methodology",
 ];
 
 const snapshotRoutes = [
@@ -19,32 +20,15 @@ const snapshotRoutes = [
   "/api/data/nitrates?lat=53.2744&lng=-9.0491",
   "/api/data/epa/wfd-status?lat=53.2744&lng=-9.0491",
   "/api/data/cap-summary?county=Galway",
-];
-
-const directJsonRoutes = [
-  {
-    path: "/api/data/geocode?q=H91",
-    validate: (payload) =>
-      Number.isFinite(payload.latitude) && Number.isFinite(payload.longitude),
-    expectation: "finite latitude and longitude",
-  },
-  {
-    path: "/api/data/cso/AEA01",
-    validate: (payload) =>
-      payload.class === "dataset" && Array.isArray(payload.value),
-    expectation: "a JSON-stat dataset",
-  },
-  {
-    path: "/api/data/cso/AHM05",
-    validate: (payload) =>
-      payload.class === "dataset" && Array.isArray(payload.value),
-    expectation: "a JSON-stat dataset",
-  },
+  "/api/data/geocode?q=H91",
+  "/api/data/cso/AEA01",
+  "/api/data/cso/AHM05",
 ];
 
 const validSnapshotStatuses = new Set([
   "live",
   "cached",
+  "partial",
   "stale",
   "unavailable",
 ]);
@@ -108,15 +92,20 @@ async function checkSnapshot(path) {
       `${path} did not expose an honest unavailable state`,
     );
   }
+  if (path.includes("/geocode")) {
+    assert(
+      Number.isFinite(payload.data?.latitude) &&
+        Number.isFinite(payload.data?.longitude),
+      `${path} omitted normalized coordinates`,
+    );
+  }
+  if (path.includes("/cso/")) {
+    assert(
+      payload.data?.class === "dataset" && Array.isArray(payload.data?.value),
+      `${path} omitted its validated JSON-stat dataset`,
+    );
+  }
   return `${path} -> ${payload.status}`;
-}
-
-async function checkDirectJson({ path, validate, expectation }) {
-  const response = await fetchWithDeadline(path);
-  const payload = await response.json();
-  assert(response.status === 200, `${path} returned HTTP ${response.status}`);
-  assert(validate(payload), `${path} did not return ${expectation}`);
-  return `${path} -> ${expectation}`;
 }
 
 async function checkInvalidCoordinateGuard() {
@@ -139,9 +128,6 @@ async function main() {
   }
   for (const path of snapshotRoutes) {
     results.push(await checkSnapshot(path));
-  }
-  for (const route of directJsonRoutes) {
-    results.push(await checkDirectJson(route));
   }
   results.push(await checkInvalidCoordinateGuard());
 

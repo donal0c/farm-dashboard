@@ -1,4 +1,7 @@
-import type { SourceSnapshot } from "@/lib/contracts/source-snapshot";
+import { z } from "zod";
+
+import type { SourceSnapshot } from "../contracts/source-snapshot.ts";
+import { fetchValidated } from "../server/fetch-validated.ts";
 
 export type ForecastDay = {
   date: string;
@@ -17,30 +20,51 @@ export type FarmForecast = {
   days: ForecastDay[];
 };
 
-type OpenMeteoPayload = {
-  latitude: number;
-  longitude: number;
-  timezone: string;
-  daily?: {
-    time?: string[];
-    weather_code?: number[];
-    temperature_2m_max?: number[];
-    temperature_2m_min?: number[];
-    precipitation_sum?: number[];
-    precipitation_probability_max?: number[];
-    wind_gusts_10m_max?: number[];
-  };
-};
+export const forecastDaySchema = z.object({
+  date: z.string().date(),
+  weatherCode: z.number().finite(),
+  temperatureMaxC: z.number().finite(),
+  temperatureMinC: z.number().finite(),
+  rainMm: z.number().finite().nonnegative(),
+  precipitationProbability: z.number().finite().min(0).max(100),
+  windGustKph: z.number().finite().nonnegative(),
+});
 
-const SOURCE = {
+export const farmForecastSchema = z.object({
+  timezone: z.string().min(1),
+  latitude: z.number().finite(),
+  longitude: z.number().finite(),
+  days: z.array(forecastDaySchema),
+});
+
+const nullableFiniteArray = z.array(z.number().finite().nullable());
+
+export const openMeteoPayloadSchema = z.object({
+  latitude: z.number().finite(),
+  longitude: z.number().finite(),
+  timezone: z.string().min(1),
+  daily: z.object({
+    time: z.array(z.string().date()),
+    weather_code: nullableFiniteArray,
+    temperature_2m_max: nullableFiniteArray,
+    temperature_2m_min: nullableFiniteArray,
+    precipitation_sum: nullableFiniteArray,
+    precipitation_probability_max: nullableFiniteArray,
+    wind_gusts_10m_max: nullableFiniteArray,
+  }),
+});
+
+type OpenMeteoPayload = z.infer<typeof openMeteoPayloadSchema>;
+
+export const OPEN_METEO_SOURCE = {
   id: "open-meteo-forecast",
   label: "Open-Meteo forecast",
   url: "https://open-meteo.com/en/docs",
 };
 
-function finiteAt(values: number[] | undefined, index: number) {
+function finiteAt(values: Array<number | null>, index: number) {
   const value = values?.[index];
-  return Number.isFinite(value) ? Number(value) : 0;
+  return Number.isFinite(value) ? Number(value) : null;
 }
 
 export function normalizeOpenMeteoForecast(
@@ -48,24 +72,37 @@ export function normalizeOpenMeteoForecast(
   fetchedAt = new Date(),
 ): SourceSnapshot<FarmForecast> {
   const daily = payload.daily;
-  const dates = daily?.time ?? [];
+  const dates = daily.time;
 
   if (!dates.length) {
     throw new Error("Open-Meteo returned no daily forecast rows.");
   }
 
-  const days = dates.map((date, index) => ({
+  const candidateDays = dates.map((date, index) => ({
     date,
-    weatherCode: finiteAt(daily?.weather_code, index),
-    temperatureMaxC: finiteAt(daily?.temperature_2m_max, index),
-    temperatureMinC: finiteAt(daily?.temperature_2m_min, index),
-    rainMm: finiteAt(daily?.precipitation_sum, index),
+    weatherCode: finiteAt(daily.weather_code, index),
+    temperatureMaxC: finiteAt(daily.temperature_2m_max, index),
+    temperatureMinC: finiteAt(daily.temperature_2m_min, index),
+    rainMm: finiteAt(daily.precipitation_sum, index),
     precipitationProbability: finiteAt(
-      daily?.precipitation_probability_max,
+      daily.precipitation_probability_max,
       index,
     ),
-    windGustKph: finiteAt(daily?.wind_gusts_10m_max, index),
+    windGustKph: finiteAt(daily.wind_gusts_10m_max, index),
   }));
+  const days = candidateDays.filter(
+    (day): day is ForecastDay =>
+      day.weatherCode !== null &&
+      day.temperatureMaxC !== null &&
+      day.temperatureMinC !== null &&
+      day.rainMm !== null &&
+      day.precipitationProbability !== null &&
+      day.windGustKph !== null,
+  );
+  if (!days.length) {
+    throw new Error("Open-Meteo returned no complete daily forecast rows.");
+  }
+  const omittedDays = candidateDays.length - days.length;
 
   const fetchedIso = fetchedAt.toISOString();
   return {
@@ -75,14 +112,20 @@ export function normalizeOpenMeteoForecast(
       longitude: payload.longitude,
       days,
     },
-    source: SOURCE,
+    source: OPEN_METEO_SOURCE,
     scope: "farm",
-    status: "live",
+    status: omittedDays ? "partial" : "live",
     observedAt: fetchedIso,
     fetchedAt: fetchedIso,
     staleAfter: new Date(fetchedAt.getTime() + 45 * 60 * 1000).toISOString(),
-    warning:
+    warning: [
       "Forecast values are model estimates for the selected point, not measurements on the farm.",
+      omittedDays
+        ? `${omittedDays} incomplete forecast ${omittedDays === 1 ? "day was" : "days were"} excluded rather than converted to zero.`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" "),
     confidence: "estimate",
   };
 }
@@ -108,15 +151,12 @@ export async function fetchOpenMeteoForecast(
   url.searchParams.set("timezone", "Europe/Dublin");
   url.searchParams.set("forecast_days", "7");
 
-  const response = await fetch(url, {
-    next: { revalidate: 30 * 60 },
-    signal: AbortSignal.timeout(8_000),
+  const { data } = await fetchValidated(url, {
+    sourceId: OPEN_METEO_SOURCE.id,
+    schema: openMeteoPayloadSchema,
+    timeoutMs: 8_000,
+    maxAttempts: 2,
+    init: { next: { revalidate: 30 * 60 } },
   });
-  if (!response.ok) {
-    throw new Error(`Open-Meteo upstream returned ${response.status}.`);
-  }
-
-  return normalizeOpenMeteoForecast(
-    (await response.json()) as OpenMeteoPayload,
-  );
+  return normalizeOpenMeteoForecast(data);
 }

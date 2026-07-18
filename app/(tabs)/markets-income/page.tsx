@@ -11,7 +11,12 @@ import {
 import { useMemo } from "react";
 
 import { ThemedChart } from "@/components/charts/themed-chart";
-import { decodeJsonStat, type JsonStatDataset } from "@/lib/cso/jsonstat";
+import { fetchValidatedSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
+import {
+  decodeJsonStat,
+  type JsonStatDataset,
+  jsonStatDatasetSchema,
+} from "@/lib/cso/jsonstat";
 import { sumByPeriodLabel, sumByYear } from "@/lib/data/market-series";
 import { enterpriseLabels } from "@/lib/farm-plan";
 import { type FarmEnterprise, useUiStore } from "@/lib/store/ui-store";
@@ -41,9 +46,10 @@ const outputLabel: Record<FarmEnterprise, string> = {
 };
 
 async function fetchCso(dataset: string) {
-  const response = await fetch(`/api/data/cso/${dataset}`);
-  if (!response.ok) throw new Error(`CSO ${dataset} is unavailable.`);
-  return (await response.json()) as JsonStatDataset;
+  return fetchValidatedSourceSnapshot<JsonStatDataset>(
+    `/api/data/cso/${dataset}`,
+    jsonStatDatasetSchema,
+  );
 }
 
 function euroMillions(value: number) {
@@ -67,9 +73,9 @@ export default function MarketsIncomePage() {
   });
 
   const output = useMemo(() => {
-    if (!outputQuery.data) return [];
+    if (!outputQuery.data?.data) return [];
     return sumByYear(
-      decodeJsonStat(outputQuery.data),
+      decodeJsonStat(outputQuery.data.data),
       "TLIST(A1)",
       { STATISTIC: outputCode[enterprise], C02196V02652: "-" },
       2015,
@@ -79,9 +85,9 @@ export default function MarketsIncomePage() {
 
   const price = useMemo(() => {
     const commodity = priceCommodity[enterprise];
-    if (!priceQuery.data || !commodity) return [];
+    if (!priceQuery.data?.data || !commodity) return [];
     return sumByPeriodLabel(
-      decodeJsonStat(priceQuery.data),
+      decodeJsonStat(priceQuery.data.data),
       "TLIST(M1)",
       { STATISTIC: "AHM05C01", C02818V03389: commodity },
       2023,

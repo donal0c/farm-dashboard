@@ -16,14 +16,18 @@ import { useMemo, useState } from "react";
 import { CoordinateFields } from "@/components/farm/coordinate-fields";
 import { IrelandMap } from "@/components/map/ireland-map";
 import { Button } from "@/components/ui/button";
-import { fetchSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
+import { fetchValidatedSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
+import {
+  type CapCountyAggregate,
+  capCountyAggregateSchema,
+} from "@/lib/contracts/cap";
+import { featureCollectionContract } from "@/lib/contracts/geojson";
 import {
   enterpriseLabels,
   enterpriseOptions,
   weekFocusLabels,
   weekFocusOptions,
 } from "@/lib/farm-plan";
-import type { CapCountyAggregate } from "@/lib/sources/cap";
 import {
   type FarmEnterprise,
   type FarmWeekFocus,
@@ -60,24 +64,27 @@ export default function MyLandPage() {
   const lpisQuery = useQuery({
     queryKey: ["lpis", point?.latitude, point?.longitude],
     queryFn: () =>
-      fetchSourceSnapshot<GeoJSON.FeatureCollection>(
+      fetchValidatedSourceSnapshot<GeoJSON.FeatureCollection>(
         `/api/data/lpis?lat=${point?.latitude}&lng=${point?.longitude}&radius=0.08`,
+        featureCollectionContract,
       ),
     enabled: Boolean(point),
   });
   const nitratesQuery = useQuery({
     queryKey: ["nitrates", point?.latitude, point?.longitude],
     queryFn: () =>
-      fetchSourceSnapshot<GeoJSON.FeatureCollection>(
+      fetchValidatedSourceSnapshot<GeoJSON.FeatureCollection>(
         `/api/data/nitrates?lat=${point?.latitude}&lng=${point?.longitude}&radius=0.2`,
+        featureCollectionContract,
       ),
     enabled: Boolean(point),
   });
   const capQuery = useQuery({
     queryKey: ["cap-summary", farmLocation?.county],
     queryFn: () =>
-      fetchSourceSnapshot<CapCountyAggregate>(
+      fetchValidatedSourceSnapshot<CapCountyAggregate>(
         `/api/data/cap-summary?county=${farmLocation?.county}`,
+        capCountyAggregateSchema,
       ),
     enabled: Boolean(farmLocation?.county),
   });

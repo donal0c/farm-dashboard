@@ -8,10 +8,15 @@ import MapView, { Marker } from "react-map-gl/maplibre";
 
 import { CoordinateFields } from "@/components/farm/coordinate-fields";
 import { Button } from "@/components/ui/button";
+import { fetchValidatedSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
 import { isIrishCoordinate, type LatLng } from "@/lib/contracts/geo";
 import routingKeys from "@/lib/data/eircode-routing-keys.json";
 import { enterpriseOptions, weekFocusOptions } from "@/lib/farm-plan";
 import { farmMapColors, farmMapStyles } from "@/lib/map/style";
+import {
+  type GeocodedFarmArea,
+  geocodedFarmAreaSchema,
+} from "@/lib/sources/geocode";
 import {
   type FarmEnterprise,
   type FarmWeekFocus,
@@ -26,16 +31,12 @@ type RoutingKey = {
 
 const irelandCenter = { latitude: 53.42, longitude: -7.83 };
 
-function countyFromDescription(description: string) {
-  const county = description.split(/\s+/).filter(Boolean).at(-1);
-  return county ? county.toUpperCase() : null;
-}
-
 export function FarmSetup() {
   const { resolvedTheme } = useTheme();
   const [query, setQuery] = useState("");
   const [selectedArea, setSelectedArea] = useState<RoutingKey | null>(null);
   const [pin, setPin] = useState<LatLng | null>(null);
+  const [selectedCounty, setSelectedCounty] = useState<string | null>(null);
   const [hasPlacedPin, setHasPlacedPin] = useState(false);
   const [viewState, setViewState] = useState({
     ...irelandCenter,
@@ -77,31 +78,21 @@ export function FarmSetup() {
     setGeocodeError(null);
     setIsLocating(true);
     try {
-      const response = await fetch(
+      const snapshot = await fetchValidatedSourceSnapshot<GeocodedFarmArea>(
         `/api/data/geocode?q=${encodeURIComponent(area.description)}`,
+        geocodedFarmAreaSchema,
       );
-      if (!response.ok) {
-        throw new Error("The routing area could not be located.");
-      }
-      const payload = (await response.json()) as unknown;
-      if (
-        !payload ||
-        typeof payload !== "object" ||
-        !("latitude" in payload) ||
-        !("longitude" in payload)
-      ) {
+      if (snapshot.status === "unavailable" || !snapshot.data) {
         throw new Error("The routing area returned an invalid location.");
       }
-      const location = {
-        latitude: Number(payload.latitude),
-        longitude: Number(payload.longitude),
-      };
+      const location = snapshot.data;
       if (!isIrishCoordinate(location)) {
         setGeocodeError(
           "The routing service returned a point outside Ireland. Choose another area or enter the farm coordinates below.",
         );
         return;
       }
+      setSelectedCounty(location.county);
       placePin(location, false);
     } catch {
       setGeocodeError(
@@ -118,9 +109,7 @@ export function FarmSetup() {
       ...pin,
       label: selectedArea?.description ?? "Pinned farm location",
       routingKey: selectedArea?.name ?? null,
-      county: selectedArea
-        ? countyFromDescription(selectedArea.description)
-        : null,
+      county: selectedArea ? selectedCounty : null,
       precision: "manual-pin",
     });
     requestAnimationFrame(() => window.scrollTo({ top: 0 }));
@@ -160,6 +149,7 @@ export function FarmSetup() {
                 onChange={(event) => {
                   setQuery(event.target.value);
                   setSelectedArea(null);
+                  setSelectedCounty(null);
                   setGeocodeError(null);
                   if (!hasPlacedPin) {
                     setPin(null);

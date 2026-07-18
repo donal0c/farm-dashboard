@@ -2,15 +2,10 @@ import { NextResponse } from "next/server";
 
 import { unavailableSnapshot } from "@/lib/contracts/source-snapshot";
 import {
+  CAP_SOURCE,
   type CapCountyAggregate,
   getCapCountySnapshot,
 } from "@/lib/sources/cap";
-
-const source = {
-  id: "dafm-cap-beneficiaries-2025",
-  label: "DAFM CAP beneficiaries 2025",
-  url: "https://capben-ui.apps.services.agriculture.gov.ie/assets/capben/2025.json",
-};
 
 export async function GET(request: Request) {
   const county = new URL(request.url).searchParams
@@ -31,12 +26,12 @@ export async function GET(request: Request) {
       scope: "county",
       warning: aggregate
         ? snapshot.warning
-        : `No ${county} aggregate was present in the ${source.label} release.`,
+        : `No ${county} aggregate was present in the ${CAP_SOURCE.label} release.`,
     });
   } catch (error) {
     return NextResponse.json(
       unavailableSnapshot<CapCountyAggregate>({
-        source,
+        source: CAP_SOURCE,
         scope: "county",
         staleAfter: new Date().toISOString(),
         warning:

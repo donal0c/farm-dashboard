@@ -5,13 +5,8 @@ import { unavailableSnapshot } from "@/lib/contracts/source-snapshot";
 import {
   type FarmForecast,
   fetchOpenMeteoForecast,
+  OPEN_METEO_SOURCE,
 } from "@/lib/sources/open-meteo";
-
-const source = {
-  id: "open-meteo-forecast",
-  label: "Open-Meteo forecast",
-  url: "https://open-meteo.com/en/docs",
-};
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -31,7 +26,7 @@ export async function GET(request: Request) {
   } catch (error) {
     return NextResponse.json(
       unavailableSnapshot<FarmForecast>({
-        source,
+        source: OPEN_METEO_SOURCE,
         scope: "farm",
         staleAfter: new Date().toISOString(),
         warning:

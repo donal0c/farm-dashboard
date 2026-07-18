@@ -1,4 +1,6 @@
-import type { SourceSnapshot } from "@/lib/contracts/source-snapshot";
+import { z } from "zod";
+
+import type { SourceSnapshot } from "../contracts/source-snapshot.ts";
 
 export type MetWarning = {
   id: string;
@@ -11,16 +13,58 @@ export type MetWarning = {
   regions: string[];
 };
 
-type RawMetWarning = {
-  id?: string | number;
-  capId?: string;
-  level?: string;
-  headline?: string;
-  description?: string;
-  issued?: string;
-  onset?: string;
-  expiry?: string;
-  regions?: string[];
+export const metWarningSchema = z.object({
+  id: z.string().min(1),
+  level: z.enum(["Yellow", "Orange", "Red", "Advisory", "Unknown"]),
+  headline: z.string().min(1),
+  description: z.string(),
+  issuedAt: z.string().refine((value) => Number.isFinite(Date.parse(value))),
+  startsAt: z.string().refine((value) => Number.isFinite(Date.parse(value))),
+  expiresAt: z.string().refine((value) => Number.isFinite(Date.parse(value))),
+  regions: z.array(z.string()),
+});
+
+export const metWarningsSchema = z.array(metWarningSchema);
+
+export const rawMetWarningsSchema = z.array(
+  z
+    .object({
+      id: z.union([z.string(), z.number()]).optional(),
+      capId: z.string().optional(),
+      level: z.string().optional(),
+      headline: z.string().optional(),
+      description: z.string().optional(),
+      issued: z
+        .string()
+        .refine((value) => Number.isFinite(Date.parse(value)))
+        .optional(),
+      onset: z
+        .string()
+        .refine((value) => Number.isFinite(Date.parse(value)))
+        .optional(),
+      expiry: z
+        .string()
+        .refine((value) => Number.isFinite(Date.parse(value)))
+        .optional(),
+      regions: z.array(z.string()).optional(),
+    })
+    .passthrough(),
+);
+
+type RawMetWarning = z.infer<typeof rawMetWarningsSchema>[number];
+
+export const MET_WARNINGS_SOURCE = {
+  id: "met-eireann-warnings",
+  label: "Met Éireann warnings",
+  url: "https://www.met.ie/warnings-today.html",
+};
+
+const severityRank: Record<MetWarning["level"], number> = {
+  Red: 0,
+  Orange: 1,
+  Yellow: 2,
+  Advisory: 3,
+  Unknown: 4,
 };
 
 function warningLevel(level: string | undefined): MetWarning["level"] {
@@ -55,16 +99,19 @@ export function normalizeMetWarnings(
       ),
       expiresAt: String(warning.expiry),
       regions: Array.isArray(warning.regions) ? warning.regions : [],
-    }));
+    }))
+    .sort(
+      (left, right) =>
+        severityRank[left.level] - severityRank[right.level] ||
+        Date.parse(left.startsAt) - Date.parse(right.startsAt) ||
+        Date.parse(left.expiresAt) - Date.parse(right.expiresAt) ||
+        left.id.localeCompare(right.id),
+    );
   const fetchedIso = fetchedAt.toISOString();
 
   return {
     data,
-    source: {
-      id: "met-eireann-warnings",
-      label: "Met Éireann warnings",
-      url: "https://www.met.ie/warnings-today.html",
-    },
+    source: MET_WARNINGS_SOURCE,
     scope: "national",
     status: "live",
     observedAt:

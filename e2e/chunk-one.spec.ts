@@ -29,8 +29,8 @@ const source = {
 function snapshot(
   data: unknown,
   options: {
-    status?: "live" | "cached" | "unavailable";
-    scope?: "farm" | "nearby" | "county" | "national";
+    status?: "live" | "cached" | "partial" | "unavailable";
+    scope?: "farm" | "nearby" | "county" | "regional" | "national";
     warning?: string | null;
   } = {},
 ) {
@@ -71,6 +71,7 @@ const emptyFeatureCollection = {
 };
 
 const emptyJsonStat = {
+  class: "dataset",
   id: [],
   size: [],
   dimension: {},
@@ -238,12 +239,21 @@ async function installApiMocks(
       return;
     }
     if (url.pathname.startsWith("/api/data/cso/")) {
-      await route.fulfill({ json: emptyJsonStat });
+      await route.fulfill({
+        json: snapshot(emptyJsonStat, { scope: "national" }),
+      });
       return;
     }
     if (url.pathname === "/api/data/geocode") {
       await route.fulfill({
-        json: { latitude: farm.latitude, longitude: farm.longitude },
+        json: snapshot(
+          {
+            latitude: farm.latitude,
+            longitude: farm.longitude,
+            county: farm.county,
+          },
+          { scope: "regional", status: "cached" },
+        ),
       });
       return;
     }
@@ -354,11 +364,23 @@ test("explains geocode failures and supports retry without losing the area", asy
       return;
     }
     if (attempts === 4) {
-      await route.fulfill({ json: { latitude: 48.8566, longitude: 2.3522 } });
+      await route.fulfill({
+        json: snapshot(
+          { latitude: 48.8566, longitude: 2.3522, county: null },
+          { scope: "regional", status: "cached" },
+        ),
+      });
       return;
     }
     await route.fulfill({
-      json: { latitude: farm.latitude, longitude: farm.longitude },
+      json: snapshot(
+        {
+          latitude: farm.latitude,
+          longitude: farm.longitude,
+          county: farm.county,
+        },
+        { scope: "regional", status: "cached" },
+      ),
     });
   });
   await page.goto("/this-week");

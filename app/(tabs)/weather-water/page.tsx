@@ -15,10 +15,17 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import type { SourceSnapshot } from "@/lib/contracts/source-snapshot";
-import type { MetWarning } from "@/lib/sources/met-warnings";
-import type { FarmForecast, ForecastDay } from "@/lib/sources/open-meteo";
-import type { NearbyOpwReading } from "@/lib/sources/opw";
+import { fetchValidatedSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
+import { type MetWarning, metWarningsSchema } from "@/lib/sources/met-warnings";
+import {
+  type FarmForecast,
+  type ForecastDay,
+  farmForecastSchema,
+} from "@/lib/sources/open-meteo";
+import {
+  type NearbyOpwReading,
+  nearbyOpwReadingsSchema,
+} from "@/lib/sources/opw";
 import { useUiStore } from "@/lib/store/ui-store";
 import { cn } from "@/lib/utils";
 
@@ -62,29 +69,28 @@ export default function WeatherWaterPage() {
       farmLocation?.latitude,
       farmLocation?.longitude,
     ],
-    queryFn: async () => {
-      const response = await fetch(
+    queryFn: () =>
+      fetchValidatedSourceSnapshot<FarmForecast>(
         `/api/data/forecast?lat=${farmLocation?.latitude}&lng=${farmLocation?.longitude}`,
-      );
-      return (await response.json()) as SourceSnapshot<FarmForecast>;
-    },
+        farmForecastSchema,
+      ),
     enabled: Boolean(farmLocation),
   });
   const warningsQuery = useQuery({
     queryKey: ["met-warnings"],
-    queryFn: async () =>
-      (await fetch("/api/data/met/warnings").then((response) =>
-        response.json(),
-      )) as SourceSnapshot<MetWarning[]>,
+    queryFn: () =>
+      fetchValidatedSourceSnapshot<MetWarning[]>(
+        "/api/data/met/warnings",
+        metWarningsSchema,
+      ),
   });
   const opwQuery = useQuery({
     queryKey: ["opw-nearby", farmLocation?.latitude, farmLocation?.longitude],
-    queryFn: async () =>
-      (await fetch(
+    queryFn: () =>
+      fetchValidatedSourceSnapshot<NearbyOpwReading[]>(
         `/api/data/opw/nearby?lat=${farmLocation?.latitude}&lng=${farmLocation?.longitude}`,
-      ).then((response) => response.json())) as SourceSnapshot<
-        NearbyOpwReading[]
-      >,
+        nearbyOpwReadingsSchema,
+      ),
     enabled: Boolean(farmLocation),
   });
 

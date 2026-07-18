@@ -1,31 +1,27 @@
 import { unstable_cache } from "next/cache";
 
+import { type CapCountyAggregate, capRowsSchema } from "@/lib/contracts/cap";
 import type { SourceSnapshot } from "@/lib/contracts/source-snapshot";
+import { fetchValidated } from "@/lib/server/fetch-validated";
 
-type CapRow = {
-  co?: string;
-  z?: number;
-};
-
-export type CapCountyAggregate = {
-  county: string;
-  beneficiaries: number;
-  totalPayment: number;
-};
+export type { CapCountyAggregate } from "@/lib/contracts/cap";
 
 const CAP_YEAR = 2025;
 const CAP_URL = `https://capben-ui.apps.services.agriculture.gov.ie/assets/capben/${CAP_YEAR}.json`;
+export const CAP_SOURCE = {
+  id: `dafm-cap-beneficiaries-${CAP_YEAR}`,
+  label: `DAFM CAP beneficiaries ${CAP_YEAR}`,
+  url: CAP_URL,
+};
 
 async function fetchAndAggregateCap() {
-  const response = await fetch(CAP_URL, {
-    next: { revalidate: 30 * 24 * 60 * 60 },
-    signal: AbortSignal.timeout(20_000),
+  const { data: rows } = await fetchValidated(CAP_URL, {
+    sourceId: CAP_SOURCE.id,
+    schema: capRowsSchema,
+    timeoutMs: 20_000,
+    maxAttempts: 2,
+    init: { next: { revalidate: 30 * 24 * 60 * 60 } },
   });
-  if (!response.ok) {
-    throw new Error(`DAFM CAP returned ${response.status}.`);
-  }
-
-  const rows = (await response.json()) as CapRow[];
   const aggregates = new Map<string, CapCountyAggregate>();
 
   for (const row of rows) {
@@ -68,11 +64,7 @@ export async function getCapCountySnapshot(): Promise<
   const data = await getCachedCapAggregates();
   return {
     data,
-    source: {
-      id: `dafm-cap-beneficiaries-${CAP_YEAR}`,
-      label: `DAFM CAP beneficiaries ${CAP_YEAR}`,
-      url: CAP_URL,
-    },
+    source: CAP_SOURCE,
     scope: "national",
     status: "cached",
     observedAt: null,

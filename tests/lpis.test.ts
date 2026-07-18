@@ -45,4 +45,29 @@ describe("LPIS normalization", () => {
     assert.equal(properties?.SOURCE_ONLY_FIELD, undefined);
     assert.match(snapshot.source.label, /2024/);
   });
+
+  it("adds a completeness warning only when the feature cap is reached", () => {
+    const collection = (count: number): GeoJSON.FeatureCollection => ({
+      type: "FeatureCollection",
+      features: Array.from({ length: count }, (_, index) => ({
+        type: "Feature",
+        id: index,
+        geometry: { type: "Point", coordinates: [-8, 53] },
+        properties: { PAR_LAB: `parcel-${index}` },
+      })),
+    });
+
+    assert.doesNotMatch(
+      normalizeLpisCollection(collection(499)).warning ?? "",
+      /500-feature/,
+    );
+    assert.match(
+      normalizeLpisCollection(collection(500)).warning ?? "",
+      /500-feature/,
+    );
+    assert.match(
+      normalizeLpisCollection(collection(501)).warning ?? "",
+      /500-feature/,
+    );
+  });
 });

@@ -9,12 +9,29 @@ Last reconciled: 18 July 2026.
 | DAFM LPIS 2024 | Nearby parcel reference | Nearby, authoritative dataset | Fixed maintained collection; bypass the oversized raw cache; normalize to stable browser fields; cache the compact route response for 24h | Does not prove ownership or holding boundary; the API caps a request at 500 features |
 | DAFM nitrates 2025 | Screening layer and labels | Nearby, authoritative dataset | Discover maintained catalogue collection; validate GeoJSON; 24h cache | Map intersections are not a holding calculation |
 | EPA WFD 2019–2024 | Nearby waterbody status | Nearby, authoritative dataset | Fixed river/groundwater layers; lon/lat bbox; 24h cache | Classification belongs to waterbodies, not the farm |
-| OPW waterlevel.ie | Nearby current water levels | Sensor location, authoritative | Keep sensor `0001`, metres, valid dates/coordinates, and republication range; 15m cache | No inferred station flood threshold or farm impact |
+| OPW waterlevel.ie | Nearby current water levels | Sensor location, authoritative | Keep sensor `0001`, metres, valid dates/coordinates, and documented republication range `00001–41000`; 15m cache | No inferred station flood threshold or farm impact |
 | DAFM CAP 2025 | County beneficiary/payment context | County, authoritative | Fetch large annual file server-side; aggregate and cache | Not an entitlement or farm-payment estimate |
 | CSO AEA01 | Enterprise output context | National, authoritative | Allowlisted dataset and statistic; preserve Euro Million | Lagged national output is not farm income |
 | CSO AHM05 | Enterprise output-price direction | National, authoritative | Load only for a specific enterprise; preserve index unit | Not a sale price or trading signal |
 | Routing-key index | Setup map centring | Approximate | Curated local index; manual pin required | Not an official or full-Eircode geocoder |
 | 2026 DAFM dates | Calendar watchlist | Scheme-specific | Manually verified primary links with published date and applicability | Not a universal compliance calendar |
+
+## Snapshot vocabulary
+
+- `live`: complete validated current response.
+- `cached`: validated response served on a source-appropriate cache cadence.
+- `partial`: usable validated rows remain, but incomplete rows were explicitly
+  excluded and disclosed.
+- `stale`: last-known-good data whose freshness window has elapsed.
+- `unavailable`: no usable data; `data` is null and the failure is explicit.
+
+There is no `fallback` status and no sample-data path. Next/Vercel cache
+revalidation supplies best-effort last-known-good behavior; durable
+cross-deployment persistence is not currently implemented.
+
+Briefing heuristics are versioned in `lib/briefing/rules.ts`. The 25 mm rain and
+45 km/h gust values are conservative product/presentation heuristics, not
+official agronomic or legal thresholds.
 
 ## Drift detection
 

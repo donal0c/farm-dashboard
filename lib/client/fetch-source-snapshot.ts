@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  applyFreshnessStatus,
   type SourceSnapshot,
   sourceSnapshotEnvelopeSchema,
 } from "../contracts/source-snapshot.ts";
@@ -43,11 +44,11 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
-export async function fetchSourceSnapshot<T>(
+export async function fetchSourceSnapshot(
   input: RequestInfo | URL,
   init?: RequestInit,
   fetcher: typeof fetch = fetch,
-): Promise<SourceSnapshot<T>> {
+): Promise<SourceSnapshot<unknown>> {
   let response: Response;
   try {
     response = await fetcher(input, init);
@@ -69,7 +70,7 @@ export async function fetchSourceSnapshot<T>(
         response.status,
       );
     }
-    return parsedSnapshot.data as SourceSnapshot<T>;
+    return applyFreshnessStatus(parsedSnapshot.data);
   }
 
   const parsedError = errorPayloadSchema.safeParse(payload);
@@ -88,4 +89,22 @@ export async function fetchSourceSnapshot<T>(
     "invalid-contract",
     response.status,
   );
+}
+
+export async function fetchValidatedSourceSnapshot<T>(
+  input: RequestInfo | URL,
+  dataSchema: z.ZodType<T>,
+  init?: RequestInit,
+  fetcher: typeof fetch = fetch,
+): Promise<SourceSnapshot<T>> {
+  const snapshot = await fetchSourceSnapshot(input, init, fetcher);
+  if (snapshot.data === null) return { ...snapshot, data: null };
+  const parsed = dataSchema.safeParse(snapshot.data);
+  if (!parsed.success) {
+    throw new SourceRequestError(
+      "The source data did not match its AgriView client contract.",
+      "invalid-contract",
+    );
+  }
+  return { ...snapshot, data: parsed.data };
 }

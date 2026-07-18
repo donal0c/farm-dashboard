@@ -1,26 +1,21 @@
 import { NextResponse } from "next/server";
 
 import { boundingBox, isIrishCoordinate } from "@/lib/contracts/geo";
-import type { SourceSnapshot } from "@/lib/contracts/source-snapshot";
 import { unavailableSnapshot } from "@/lib/contracts/source-snapshot";
-
-type WfdStatusData = {
-  rivers: GeoJSON.FeatureCollection;
-  groundwater: GeoJSON.FeatureCollection;
-};
-
-const source = {
-  id: "epa-wfd-status-2019-2024",
-  label: "EPA WFD status 2019–2024",
-  url: "https://gis.epa.ie/geoserver/wfs",
-};
+import { fetchValidated } from "@/lib/server/fetch-validated";
+import {
+  EPA_WFD_SOURCE,
+  normalizeWfdSnapshot,
+  type WfdStatusData,
+  wfdFeatureCollectionSchema,
+} from "@/lib/sources/epa-wfd";
 
 function buildWfsUrl(
   layer: string,
   bbox: readonly number[],
   properties: string[],
 ) {
-  const url = new URL(source.url);
+  const url = new URL(EPA_WFD_SOURCE.url);
   url.searchParams.set("service", "WFS");
   url.searchParams.set("version", "1.1.0");
   url.searchParams.set("request", "GetFeature");
@@ -57,8 +52,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const [riverResponse, groundResponse] = await Promise.all([
-      fetch(
+    const [riverResult, groundResult] = await Promise.all([
+      fetchValidated(
         buildWfsUrl("EPA:WFD_RWBStatus_20192024", bbox, [
           "European_Code",
           "Name",
@@ -66,11 +61,14 @@ export async function GET(request: Request) {
           "Period_for_WFD_Status",
         ]),
         {
-          next: { revalidate: 24 * 60 * 60 },
-          signal: AbortSignal.timeout(10_000),
+          sourceId: `${EPA_WFD_SOURCE.id}-rivers`,
+          schema: wfdFeatureCollectionSchema,
+          timeoutMs: 10_000,
+          maxAttempts: 2,
+          init: { next: { revalidate: 24 * 60 * 60 } },
         },
       ),
-      fetch(
+      fetchValidated(
         buildWfsUrl("EPA:WFD_GWBStatus_20192024", bbox, [
           "European_Code",
           "Name",
@@ -78,40 +76,24 @@ export async function GET(request: Request) {
           "Period_for_WFD_Status",
         ]),
         {
-          next: { revalidate: 24 * 60 * 60 },
-          signal: AbortSignal.timeout(10_000),
+          sourceId: `${EPA_WFD_SOURCE.id}-groundwater`,
+          schema: wfdFeatureCollectionSchema,
+          timeoutMs: 10_000,
+          maxAttempts: 2,
+          init: { next: { revalidate: 24 * 60 * 60 } },
         },
       ),
     ]);
-    if (!riverResponse.ok || !groundResponse.ok) {
-      throw new Error(
-        `EPA WFD returned ${riverResponse.status}/${groundResponse.status}.`,
-      );
-    }
-    const [rivers, groundwater] = (await Promise.all([
-      riverResponse.json(),
-      groundResponse.json(),
-    ])) as [GeoJSON.FeatureCollection, GeoJSON.FeatureCollection];
-    const fetchedAt = new Date();
-    const snapshot: SourceSnapshot<WfdStatusData> = {
-      data: { rivers, groundwater },
-      source,
-      scope: "nearby",
-      status: "live",
-      observedAt: null,
-      fetchedAt: fetchedAt.toISOString(),
-      staleAfter: new Date(
-        fetchedAt.getTime() + 24 * 60 * 60 * 1000,
-      ).toISOString(),
-      warning:
-        "WFD classifications describe mapped waterbodies in the search area, not the compliance status of the farm.",
-      confidence: "authoritative",
-    };
-    return NextResponse.json(snapshot);
+    return NextResponse.json(
+      normalizeWfdSnapshot({
+        rivers: riverResult.data,
+        groundwater: groundResult.data,
+      }),
+    );
   } catch (error) {
     return NextResponse.json(
       unavailableSnapshot<WfdStatusData>({
-        source,
+        source: EPA_WFD_SOURCE,
         scope: "nearby",
         staleAfter: new Date().toISOString(),
         warning:

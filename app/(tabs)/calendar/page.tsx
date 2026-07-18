@@ -5,14 +5,10 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+import { upcomingComplianceItems } from "@/lib/compliance/calendar";
 import { complianceDates2026 } from "@/lib/compliance/rules";
 
 export const revalidate = 3600;
-
-function daysUntil(date: string, now: Date) {
-  const deadline = new Date(`${date}T23:59:59+01:00`);
-  return Math.ceil((deadline.getTime() - now.getTime()) / 86_400_000);
-}
 
 function formatDate(date: string) {
   return new Intl.DateTimeFormat("en-IE", {
@@ -25,10 +21,7 @@ function formatDate(date: string) {
 
 export default function CalendarPage() {
   const now = new Date();
-  const upcoming = complianceDates2026
-    .map((item) => ({ ...item, days: daysUntil(item.date, now) }))
-    .filter((item) => item.days >= 0)
-    .sort((a, b) => a.days - b.days);
+  const upcoming = upcomingComplianceItems(complianceDates2026, now);
 
   return (
     <div>

@@ -99,6 +99,61 @@ describe("deterministic weekly briefing", () => {
     assert.equal(brief.items.length, 3);
   });
 
+  it("applies the rain threshold exactly at its versioned boundary", () => {
+    for (const [total, expected] of [
+      [24, "field-window"],
+      [25, "ground-access"],
+      [26, "ground-access"],
+    ] as const) {
+      const brief = deriveWeeklyBrief({
+        forecast: forecast([total, 0], [20, 20]),
+        enterprise: "beef",
+        focus: "grazing",
+      });
+      assert.equal(brief.items[0].id, expected);
+    }
+  });
+
+  it("reports the actual usable-day coverage for a partial wet forecast", () => {
+    const brief = deriveWeeklyBrief({
+      forecast: forecast([13, 12], [20, 20]),
+      enterprise: "beef",
+      focus: "grazing",
+    });
+
+    assert.equal(brief.items[0].id, "ground-access");
+    assert.match(brief.items[0].summary, /across 2 usable days/);
+    assert.doesNotMatch(brief.items[0].summary, /seven days/);
+  });
+
+  it("applies the gust attention threshold below, at, and above", () => {
+    for (const [gust, strong] of [
+      [44, false],
+      [45, true],
+      [46, true],
+    ] as const) {
+      const brief = deriveWeeklyBrief({
+        forecast: forecast([0, 0], [20, gust]),
+        enterprise: "beef",
+        focus: "grazing",
+      });
+      const wind = brief.items.find((item) => item.id === "wind-check");
+      assert.equal(wind?.title.includes("Strong gusts"), strong);
+    }
+  });
+
+  it("uses a stable earliest-window tie-break", () => {
+    const brief = deriveWeeklyBrief({
+      forecast: forecast([0, 0, 0], [20, 20, 20]),
+      enterprise: "beef",
+      focus: "grazing",
+    });
+    assert.deepEqual(brief.items[0].relevantDates, [
+      "2026-07-18",
+      "2026-07-19",
+    ]);
+  });
+
   it("finds a dry window for tillage without claiming permission to spray", () => {
     const brief = deriveWeeklyBrief({
       forecast: forecast([4, 0, 0.2, 7, 3, 1, 2], [20, 18, 21, 30, 20, 19, 18]),
@@ -167,6 +222,97 @@ describe("deterministic weekly briefing", () => {
 
     assert.equal(brief.items[0].id, "weather-warning");
     assert.equal(brief.items[0].priority, "act");
+  });
+
+  it("ranks warning applicability before severity and preserves concurrent evidence", () => {
+    const warnings = normalizeMetWarnings(
+      [
+        {
+          id: "cork-red",
+          level: "Red",
+          headline: "Red warning for Cork",
+          onset: "2026-07-18T09:00:00Z",
+          expiry: "2026-07-20T23:00:00Z",
+          regions: ["EI04"],
+        },
+        {
+          id: "galway-yellow",
+          level: "Yellow",
+          headline: "Yellow warning for Galway",
+          onset: "2026-07-18T09:00:00Z",
+          expiry: "2026-07-20T23:00:00Z",
+          regions: ["EI10"],
+        },
+      ],
+      new Date("2026-07-18T08:00:00Z"),
+    );
+    const brief = deriveWeeklyBrief({
+      forecast: forecast([0, 0], [20, 20]),
+      warnings,
+      enterprise: "beef",
+      focus: "grazing",
+      region: "GALWAY",
+    });
+    const warningItem = brief.items.find(
+      (item) => item.id === "weather-warning",
+    );
+    assert.equal(warningItem?.title, "Yellow warning for Galway");
+    const evidence = brief.evidence.find((item) => item.id === "met-warning");
+    assert.match(evidence?.explanation ?? "", /Red warning for Cork/);
+  });
+
+  it("does not treat a routing-area digit as a county warning match", () => {
+    const warnings = normalizeMetWarnings(
+      [
+        {
+          id: "galway-red",
+          level: "Red",
+          headline: "Red warning for Galway",
+          onset: "2026-07-18T09:00:00Z",
+          expiry: "2026-07-20T23:00:00Z",
+          regions: ["EI10"],
+        },
+        {
+          id: "cork-yellow",
+          level: "Yellow",
+          headline: "Yellow warning for Cork",
+          onset: "2026-07-18T09:00:00Z",
+          expiry: "2026-07-20T23:00:00Z",
+          regions: ["EI04"],
+        },
+      ],
+      new Date("2026-07-18T08:00:00Z"),
+    );
+    const brief = deriveWeeklyBrief({
+      forecast: forecast([0, 0], [20, 20]),
+      warnings,
+      enterprise: "beef",
+      focus: "grazing",
+      region: "4",
+    });
+
+    assert.equal(
+      brief.items.find((item) => item.id === "weather-warning")?.title,
+      "Red warning for Galway",
+    );
+  });
+
+  it("resolves every evidence id and keeps a decision boundary for usable briefs", () => {
+    for (const input of [
+      { forecast: forecast([0], [20]), focus: "grazing" as const },
+      { forecast: forecast([0, 0], [20, 20]), focus: "grazing" as const },
+      { forecast: forecast([13, 13], [50, 50]), focus: "spraying" as const },
+    ]) {
+      const brief = deriveWeeklyBrief({
+        ...input,
+        enterprise: "mixed",
+      });
+      const evidenceIds = new Set(brief.evidence.map((item) => item.id));
+      assert.ok(brief.items.every((item) => evidenceIds.has(item.evidenceId)));
+      assert.ok(
+        brief.items.some((item) => item.evidenceId === "decision-boundary"),
+      );
+    }
   });
 
   it("keeps sales decisions separate from weather-derived field windows", () => {

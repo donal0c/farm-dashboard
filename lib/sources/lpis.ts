@@ -1,6 +1,13 @@
-import type { SourceSnapshot } from "@/lib/contracts/source-snapshot";
+import { featureCollectionContract } from "../contracts/geojson.ts";
+import type { SourceSnapshot } from "../contracts/source-snapshot.ts";
 
 export const LPIS_COLLECTION = "anonymous-lpis-data-for-2024_2024-lpis-data";
+export const LPIS_SOURCE = {
+  id: "dafm-lpis-2024",
+  label: "DAFM LPIS 2024",
+  url: `https://geoapi.opendata.agriculture.gov.ie/shps/collections/${LPIS_COLLECTION}`,
+};
+export const lpisPayloadSchema = featureCollectionContract;
 
 export type NormalizedLpisProperties = Record<string, unknown> & {
   parcelId: string;
@@ -51,11 +58,7 @@ export function normalizeLpisCollection(
 
   return {
     data: { ...featureCollection, features },
-    source: {
-      id: "dafm-lpis-2024",
-      label: "DAFM LPIS 2024",
-      url: `https://geoapi.opendata.agriculture.gov.ie/shps/collections/${LPIS_COLLECTION}`,
-    },
+    source: LPIS_SOURCE,
     scope: "nearby",
     status: "live",
     observedAt: null,
@@ -63,8 +66,14 @@ export function normalizeLpisCollection(
     staleAfter: new Date(
       fetchedAt.getTime() + 30 * 24 * 60 * 60 * 1000,
     ).toISOString(),
-    warning:
+    warning: [
       "Nearby LPIS parcels are scheme reference data. They do not establish ownership or the boundary of the saved farm.",
+      features.length >= 500
+        ? "The upstream response reached its 500-feature request limit and may be incomplete."
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" "),
     confidence: "authoritative",
   };
 }

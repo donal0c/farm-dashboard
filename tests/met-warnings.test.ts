@@ -32,4 +32,38 @@ describe("Met Éireann warning contract", () => {
     assert.equal(snapshot.scope, "national");
     assert.equal(snapshot.confidence, "authoritative");
   });
+
+  it("sorts concurrent warnings by severity, active period, and stable id", () => {
+    const snapshot = normalizeMetWarnings(
+      [
+        {
+          id: "yellow",
+          level: "Yellow",
+          headline: "Yellow warning",
+          onset: "2026-07-18T10:00:00Z",
+          expiry: "2026-07-20T10:00:00Z",
+        },
+        {
+          id: "orange-b",
+          level: "Orange",
+          headline: "Orange later",
+          onset: "2026-07-18T12:00:00Z",
+          expiry: "2026-07-20T10:00:00Z",
+        },
+        {
+          id: "orange-a",
+          level: "Orange",
+          headline: "Orange earlier",
+          onset: "2026-07-18T09:00:00Z",
+          expiry: "2026-07-20T10:00:00Z",
+        },
+      ],
+      new Date("2026-07-18T08:00:00Z"),
+    );
+
+    assert.deepEqual(
+      snapshot.data?.map((warning) => warning.id),
+      ["orange-a", "orange-b", "yellow"],
+    );
+  });
 });

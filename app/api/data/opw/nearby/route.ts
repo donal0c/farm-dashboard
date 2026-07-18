@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 
 import { isIrishCoordinate } from "@/lib/contracts/geo";
 import { unavailableSnapshot } from "@/lib/contracts/source-snapshot";
-import { type NearbyOpwReading, normalizeNearbyOpw } from "@/lib/sources/opw";
-
-const source = {
-  id: "opw-water-levels",
-  label: "OPW waterlevel.ie",
-  url: "https://waterlevel.ie/",
-};
+import { fetchValidated } from "@/lib/server/fetch-validated";
+import {
+  type NearbyOpwReading,
+  normalizeNearbyOpw,
+  OPW_SOURCE,
+  rawOpwPayloadSchema,
+} from "@/lib/sources/opw";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -22,15 +22,18 @@ export async function GET(request: Request) {
   }
 
   try {
-    const response = await fetch("https://waterlevel.ie/geojson/latest/", {
-      next: { revalidate: 15 * 60 },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!response.ok) {
-      throw new Error(`OPW water levels returned ${response.status}.`);
-    }
+    const { data } = await fetchValidated(
+      "https://waterlevel.ie/geojson/latest/",
+      {
+        sourceId: OPW_SOURCE.id,
+        schema: rawOpwPayloadSchema,
+        timeoutMs: 10_000,
+        maxAttempts: 2,
+        init: { next: { revalidate: 15 * 60 } },
+      },
+    );
     return NextResponse.json(
-      normalizeNearbyOpw((await response.json()) as { features?: [] }, {
+      normalizeNearbyOpw(data, {
         latitude,
         longitude,
       }),
@@ -38,7 +41,7 @@ export async function GET(request: Request) {
   } catch (error) {
     return NextResponse.json(
       unavailableSnapshot<NearbyOpwReading[]>({
-        source,
+        source: OPW_SOURCE,
         scope: "nearby",
         staleAfter: new Date().toISOString(),
         warning:

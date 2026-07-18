@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-
+import { z } from "zod";
 import {
   fetchSourceSnapshot,
+  fetchValidatedSourceSnapshot,
   SourceRequestError,
 } from "../lib/client/fetch-source-snapshot.ts";
+import {
+  applyFreshnessStatus,
+  type SourceSnapshot,
+} from "../lib/contracts/source-snapshot.ts";
 
 const source = {
   id: "test-source",
@@ -12,7 +17,10 @@ const source = {
   url: "https://example.com/source",
 };
 
-function snapshot(data: unknown, status: "live" | "unavailable" = "live") {
+function snapshot(
+  data: unknown,
+  status: "live" | "unavailable" = "live",
+): SourceSnapshot<unknown> {
   return {
     data,
     source,
@@ -20,7 +28,7 @@ function snapshot(data: unknown, status: "live" | "unavailable" = "live") {
     status,
     observedAt: null,
     fetchedAt: "2026-07-18T12:00:00.000Z",
-    staleAfter: "2026-07-18T12:30:00.000Z",
+    staleAfter: "2099-07-18T12:30:00.000Z",
     warning: status === "unavailable" ? "Upstream unavailable." : null,
     confidence: "estimate",
   };
@@ -35,7 +43,7 @@ function jsonResponse(payload: unknown, status = 200) {
 
 describe("SourceSnapshot client boundary", () => {
   it("preserves live-empty as a successful source state", async () => {
-    const result = await fetchSourceSnapshot<unknown[]>(
+    const result = await fetchSourceSnapshot(
       "https://example.test/data",
       undefined,
       async () => jsonResponse(snapshot([])),
@@ -106,5 +114,47 @@ describe("SourceSnapshot client boundary", () => {
       (error) =>
         error instanceof SourceRequestError && error.kind === "invalid-json",
     );
+  });
+
+  it("validates source-specific data at the client boundary", async () => {
+    const dataSchema = z.object({ value: z.number() });
+    await assert.rejects(
+      () =>
+        fetchValidatedSourceSnapshot(
+          "https://example.test/data",
+          dataSchema,
+          undefined,
+          async () => jsonResponse(snapshot({ value: "wrong" })),
+        ),
+      (error) =>
+        error instanceof SourceRequestError &&
+        error.kind === "invalid-contract",
+    );
+
+    const result = await fetchValidatedSourceSnapshot(
+      "https://example.test/data",
+      dataSchema,
+      undefined,
+      async () => jsonResponse(snapshot({ value: 7 })),
+    );
+    assert.equal(result.data?.value, 7);
+  });
+
+  it("moves cached or live snapshots to stale only after their freshness window", () => {
+    const current = {
+      ...snapshot([1]),
+      staleAfter: "2026-07-18T12:30:00.000Z",
+    };
+    assert.equal(
+      applyFreshnessStatus(current, new Date("2026-07-18T12:29:59.000Z"))
+        .status,
+      "live",
+    );
+    const stale = applyFreshnessStatus(
+      current,
+      new Date("2026-07-18T12:30:00.000Z"),
+    );
+    assert.equal(stale.status, "stale");
+    assert.match(stale.warning ?? "", /freshness window/);
   });
 });

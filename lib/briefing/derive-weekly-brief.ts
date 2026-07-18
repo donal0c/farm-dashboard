@@ -2,6 +2,8 @@ import type { SourceSnapshot } from "@/lib/contracts/source-snapshot";
 import type { MetWarning } from "@/lib/sources/met-warnings";
 import type { FarmForecast, ForecastDay } from "@/lib/sources/open-meteo";
 import type { FarmEnterprise, FarmWeekFocus } from "@/lib/store/ui-store";
+import { warningRegionsIncludeCounty } from "../ireland/counties.ts";
+import { briefingRules } from "./rules.ts";
 import type { BriefItem, WeeklyBrief } from "./types";
 
 type BriefInput = {
@@ -9,6 +11,7 @@ type BriefInput = {
   warnings?: SourceSnapshot<MetWarning[]>;
   enterprise: FarmEnterprise;
   focus: FarmWeekFocus;
+  region?: string | null;
   now?: Date;
 };
 
@@ -56,11 +59,36 @@ function briefRank(item: BriefItem) {
   return 3;
 }
 
+const warningRank = { Red: 0, Orange: 1, Yellow: 2, Advisory: 3, Unknown: 4 };
+
+function rankWarnings(warnings: MetWarning[], region?: string | null) {
+  const applicability = (warning: MetWarning) => {
+    if (warningRegionsIncludeCounty(warning.regions, region)) {
+      return 0;
+    }
+    if (
+      !warning.regions.length ||
+      warning.regions.some((item) => /ireland|national|all/i.test(item))
+    ) {
+      return 1;
+    }
+    return 2;
+  };
+  return [...warnings].sort(
+    (left, right) =>
+      applicability(left) - applicability(right) ||
+      warningRank[left.level] - warningRank[right.level] ||
+      Date.parse(left.startsAt) - Date.parse(right.startsAt) ||
+      left.id.localeCompare(right.id),
+  );
+}
+
 export function deriveWeeklyBrief({
   forecast,
   warnings,
   enterprise,
   focus,
+  region,
   now = new Date(),
 }: BriefInput): WeeklyBrief {
   const days = forecast.data?.days ?? [];
@@ -73,7 +101,8 @@ export function deriveWeeklyBrief({
   const dry = driestWindow(days);
   const totalRain = days.reduce((sum, day) => sum + day.rainMm, 0);
   const items: BriefItem[] = [];
-  const activeWarning = warnings?.data?.[0];
+  const rankedWarnings = rankWarnings(warnings?.data ?? [], region);
+  const activeWarning = rankedWarnings[0];
 
   if (activeWarning) {
     items.push({
@@ -110,13 +139,13 @@ export function deriveWeeklyBrief({
       evidenceId: "forecast-coverage",
       relevantDates: days.map((day) => day.date),
     });
-  } else if (totalRain >= 25) {
+  } else if (totalRain >= briefingRules.groundAccess.threshold) {
     items.push({
       id: "ground-access",
       priority: "act",
       eyebrow: "Ground access",
       title: `Protect vulnerable ground before ${formatDay(wettest.date)}`,
-      summary: `${totalRain.toFixed(0)} mm is forecast across seven days, with ${wettest.rainMm.toFixed(0)} mm on ${formatDay(wettest.date)}.`,
+      summary: `${totalRain.toFixed(0)} mm is forecast across ${days.length} usable ${days.length === 1 ? "day" : "days"}, with ${wettest.rainMm.toFixed(0)} mm on ${formatDay(wettest.date)}.`,
       detail:
         "Walk the wettest blocks before moving heavy machinery or stock. Keep watercourse buffers and poaching risk in the decision.",
       evidenceId: "forecast-rain",
@@ -154,7 +183,7 @@ export function deriveWeeklyBrief({
       priority: "check",
       eyebrow: focus === "spraying" ? "Spray check" : "Wind check",
       title:
-        windiest.windGustKph >= 45
+        windiest.windGustKph >= briefingRules.windCheck.threshold
           ? `Strong gusts could constrain work on ${formatDay(windiest.date)}`
           : `Wind is not the main weekly constraint`,
       summary: `Peak modelled gusts reach ${windiest.windGustKph.toFixed(0)} km/h on ${formatDay(windiest.date)}.`,
@@ -210,8 +239,17 @@ export function deriveWeeklyBrief({
               observedAt: warnings.observedAt,
               scope: warnings.scope,
               confidence: warnings.confidence,
-              explanation:
-                "Active Red or Orange warnings are promoted to Act; Yellow warnings remain a Check alongside model-derived work windows.",
+              explanation: [
+                "Warnings are ordered by saved-region applicability, severity, active period, and stable id. Red or Orange is promoted to Act; Yellow remains a Check.",
+                rankedWarnings.length > 1
+                  ? `Also active: ${rankedWarnings
+                      .slice(1)
+                      .map((warning) => `${warning.level}: ${warning.headline}`)
+                      .join("; ")}.`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" "),
             },
           ]
         : []),
@@ -238,8 +276,7 @@ export function deriveWeeklyBrief({
         observedAt: forecast.observedAt,
         scope: forecast.scope,
         confidence: forecast.confidence,
-        explanation:
-          "The rule flags access risk when total modelled rain reaches 25 mm in seven days.",
+        explanation: `${briefingRules.groundAccess.rationale} Threshold: ${briefingRules.groundAccess.threshold} ${briefingRules.groundAccess.unit}. Version ${briefingRules.groundAccess.version}.`,
       },
       {
         id: "forecast-window",
@@ -249,8 +286,7 @@ export function deriveWeeklyBrief({
         observedAt: forecast.observedAt,
         scope: forecast.scope,
         confidence: forecast.confidence,
-        explanation:
-          "The rule compares adjacent forecast days by combined rain, using gust speed as a tie-breaker.",
+        explanation: `${briefingRules.workWindow.rationale} Version ${briefingRules.workWindow.version}.`,
       },
       {
         id: "forecast-wind",
@@ -260,8 +296,7 @@ export function deriveWeeklyBrief({
         observedAt: forecast.observedAt,
         scope: forecast.scope,
         confidence: forecast.confidence,
-        explanation:
-          "The rule reports the highest daily modelled gust and does not infer field-level suitability.",
+        explanation: `${briefingRules.windCheck.rationale} Attention threshold: ${briefingRules.windCheck.threshold} ${briefingRules.windCheck.unit}. Version ${briefingRules.windCheck.version}.`,
       },
       {
         id: "decision-boundary",

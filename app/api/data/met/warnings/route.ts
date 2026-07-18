@@ -1,36 +1,31 @@
 import { NextResponse } from "next/server";
 
 import { unavailableSnapshot } from "@/lib/contracts/source-snapshot";
+import { fetchValidated } from "@/lib/server/fetch-validated";
 import {
+  MET_WARNINGS_SOURCE,
   type MetWarning,
   normalizeMetWarnings,
+  rawMetWarningsSchema,
 } from "@/lib/sources/met-warnings";
-
-const source = {
-  id: "met-eireann-warnings",
-  label: "Met Éireann warnings",
-  url: "https://www.met.ie/warnings-today.html",
-};
 
 export async function GET() {
   try {
-    const response = await fetch(
+    const { data } = await fetchValidated(
       "https://www.met.ie/Open_Data/json/warning_IRELAND.json",
       {
-        next: { revalidate: 10 * 60 },
-        signal: AbortSignal.timeout(8_000),
+        sourceId: MET_WARNINGS_SOURCE.id,
+        schema: rawMetWarningsSchema,
+        timeoutMs: 8_000,
+        maxAttempts: 2,
+        init: { next: { revalidate: 10 * 60 } },
       },
     );
-    if (!response.ok) {
-      throw new Error(`Met Éireann warnings returned ${response.status}.`);
-    }
-    return NextResponse.json(
-      normalizeMetWarnings((await response.json()) as []),
-    );
+    return NextResponse.json(normalizeMetWarnings(data));
   } catch (error) {
     return NextResponse.json(
       unavailableSnapshot<MetWarning[]>({
-        source,
+        source: MET_WARNINGS_SOURCE,
         scope: "national",
         staleAfter: new Date().toISOString(),
         warning:

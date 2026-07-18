@@ -1,19 +1,39 @@
+import { z } from "zod";
+
 import { distanceKm, type LatLng } from "../contracts/geo.ts";
 import type { SourceSnapshot } from "../contracts/source-snapshot.ts";
 
-type RawOpwFeature = {
-  properties?: {
-    station_ref?: string;
-    station_name?: string;
-    sensor_ref?: string;
-    datetime?: string;
-    value?: string;
-    csv_file?: string;
-  };
-  geometry?: {
-    type?: string;
-    coordinates?: [number, number];
-  };
+export const rawOpwPayloadSchema = z.object({
+  features: z.array(
+    z
+      .object({
+        properties: z
+          .object({
+            station_ref: z.string().optional(),
+            station_name: z.string().optional(),
+            sensor_ref: z.string().optional(),
+            datetime: z.string().optional(),
+            value: z.union([z.string(), z.number()]).optional(),
+            csv_file: z.string().optional(),
+          })
+          .optional(),
+        geometry: z
+          .object({
+            type: z.string().optional(),
+            coordinates: z.tuple([z.number(), z.number()]).optional(),
+          })
+          .optional(),
+      })
+      .passthrough(),
+  ),
+});
+
+type RawOpwFeature = z.infer<typeof rawOpwPayloadSchema>["features"][number];
+
+export const OPW_SOURCE = {
+  id: "opw-water-levels",
+  label: "OPW waterlevel.ie",
+  url: "https://waterlevel.ie/",
 };
 
 export type NearbyOpwReading = {
@@ -29,6 +49,22 @@ export type NearbyOpwReading = {
   longitude: number;
   csvFile: string | null;
 };
+
+export const nearbyOpwReadingSchema = z.object({
+  stationRef: z.string().min(1),
+  stationName: z.string().min(1),
+  sensorRef: z.string().min(1),
+  parameter: z.literal("Water level"),
+  unit: z.literal("m"),
+  observedAt: z.string().refine((value) => Number.isFinite(Date.parse(value))),
+  value: z.number().finite(),
+  distanceKm: z.number().finite().nonnegative(),
+  latitude: z.number().finite(),
+  longitude: z.number().finite(),
+  csvFile: z.string().nullable(),
+});
+
+export const nearbyOpwReadingsSchema = z.array(nearbyOpwReadingSchema);
 
 export function normalizeNearbyOpw(
   payload: { features?: RawOpwFeature[] },
@@ -51,6 +87,8 @@ export function normalizeNearbyOpw(
         !properties?.station_ref ||
         properties.sensor_ref !== "0001" ||
         !Number.isFinite(stationNumber) ||
+        // OPW's publication terms clear station references 00001–41000 for
+        // republication; higher references require separate permission.
         stationNumber > 41_000
       ) {
         return null;
@@ -79,11 +117,7 @@ export function normalizeNearbyOpw(
 
   return {
     data: readings,
-    source: {
-      id: "opw-water-levels",
-      label: "OPW waterlevel.ie",
-      url: "https://waterlevel.ie/",
-    },
+    source: OPW_SOURCE,
     scope: "nearby",
     status: "live",
     observedAt:

@@ -1,3 +1,51 @@
+import { z } from "zod";
+
+const categorySchema = z.object({
+  index: z.union([
+    z.array(z.string()),
+    z.record(z.string(), z.number().int().nonnegative()),
+  ]),
+  label: z.record(z.string(), z.string()).optional(),
+});
+
+export const jsonStatDatasetSchema = z
+  .object({
+    class: z.literal("dataset"),
+    id: z.array(z.string()).min(1),
+    size: z.array(z.number().int().positive()).min(1),
+    dimension: z.record(
+      z.string(),
+      z.object({
+        category: categorySchema,
+      }),
+    ),
+    value: z.array(z.number().finite().nullable()),
+  })
+  .superRefine((dataset, context) => {
+    if (dataset.id.length !== dataset.size.length) {
+      context.addIssue({
+        code: "custom",
+        message: "JSON-stat dimension ids and sizes are not aligned.",
+      });
+    }
+    if (dataset.id.some((id) => !dataset.dimension[id])) {
+      context.addIssue({
+        code: "custom",
+        message: "JSON-stat is missing dimension metadata.",
+      });
+    }
+    const expectedValues = dataset.size.reduce(
+      (product, size) => product * size,
+      1,
+    );
+    if (dataset.value.length !== expectedValues) {
+      context.addIssue({
+        code: "custom",
+        message: "JSON-stat value length does not match its dimensions.",
+      });
+    }
+  });
+
 export type JsonStatDataset = {
   id: string[];
   size: number[];
