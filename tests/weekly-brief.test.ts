@@ -109,4 +109,19 @@ describe("deterministic weekly briefing", () => {
     assert.equal(brief.items[0].id, "weather-warning");
     assert.equal(brief.items[0].priority, "act");
   });
+
+  it("keeps sales decisions separate from weather-derived field windows", () => {
+    const brief = deriveWeeklyBrief({
+      forecast: forecast([0, 0, 0.2, 0, 0, 0, 0], [20, 18, 21, 30, 20, 19, 18]),
+      enterprise: "dairy",
+      focus: "sales",
+      now: new Date("2026-07-18T08:00:00Z"),
+    });
+
+    const boundary = brief.items.at(-1);
+    assert.equal(boundary?.id, "compliance-check");
+    assert.equal(boundary?.eyebrow, "Commercial boundary");
+    assert.match(boundary?.title ?? "", /sale timing/i);
+    assert.match(boundary?.detail ?? "", /Use Markets/);
+  });
 });

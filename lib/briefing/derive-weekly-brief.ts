@@ -153,15 +153,21 @@ export function deriveWeeklyBrief({
   items.push({
     id: "compliance-check",
     priority: "watch",
-    eyebrow: "Before acting",
+    eyebrow: focus === "sales" ? "Commercial boundary" : "Before acting",
     title:
-      focus === "nutrients" || focus === "compliance"
-        ? "Confirm the rule and field context"
-        : "Keep compliance as a separate check",
+      focus === "sales"
+        ? "Keep sale timing separate from field conditions"
+        : focus === "nutrients" || focus === "compliance"
+          ? "Confirm the rule and field context"
+          : "Keep compliance as a separate check",
     summary:
-      "Weather suitability does not establish that spreading, spraying, grazing, or drainage work is permitted.",
+      focus === "sales"
+        ? "A dry weather window does not establish the right time or price to sell."
+        : "Weather suitability does not establish that spreading, spraying, grazing, or drainage work is permitted.",
     detail:
-      "AgriView separates forecast evidence from legal and field-specific decisions. Use dated official guidance for the applicable scheme and holding.",
+      focus === "sales"
+        ? "Use Markets for national, lagged commercial context, then confirm your own costs, specification, buyer terms, and live price before deciding."
+        : "AgriView separates forecast evidence from legal and field-specific decisions. Use dated official guidance for the applicable scheme and holding.",
     evidenceId: "decision-boundary",
     relevantDates: [],
   });

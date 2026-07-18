@@ -48,6 +48,11 @@ const secondaryNav = [
     label: "Environment",
     icon: SlidersHorizontal,
   },
+  {
+    href: "/methodology",
+    label: "Methodology",
+    icon: BookOpenText,
+  },
 ] as const;
 
 function BrandMark() {
@@ -111,9 +116,7 @@ function MobileMoreMenu() {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const moreIsActive =
-    secondaryNav.some((item) => item.href === pathname) ||
-    pathname === "/methodology";
+  const moreIsActive = secondaryNav.some((item) => item.href === pathname);
 
   useEffect(() => {
     if (!open) return;
@@ -195,15 +198,6 @@ function MobileMoreMenu() {
                 <Settings2 className="h-5 w-5 text-primary" />
                 Farm settings
               </Link>
-              <Link
-                href="/methodology"
-                onClick={close}
-                aria-current={pathname === "/methodology" ? "page" : undefined}
-                className="flex min-h-12 items-center gap-3 rounded-md px-3 text-sm font-semibold hover:bg-muted"
-              >
-                <BookOpenText className="h-5 w-5 text-primary" />
-                Methodology
-              </Link>
             </nav>
           </div>
         </div>
@@ -237,7 +231,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         Skip to main content
       </a>
-      <aside className="paper-grain hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex md:h-dvh md:flex-col">
+      <aside className="paper-grain hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:sticky md:top-0 md:flex md:h-dvh md:self-start md:flex-col">
         <header className="flex h-20 items-center gap-3 border-b border-sidebar-border px-5">
           <span className="text-sidebar-primary">
             <BrandMark />
@@ -294,7 +288,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </span>
             <span className="font-editorial text-xl font-medium">AgriView</span>
           </Link>
-          <ThemeToggle />
+          <ThemeToggle surface="page" />
         </header>
 
         <main

@@ -43,6 +43,7 @@ export function IrelandMap({
   return (
     <div className="h-[420px] w-full overflow-hidden rounded-lg border border-border">
       <MapView
+        cooperativeGestures
         mapStyle={
           resolvedTheme === "dark" ? farmMapStyles.dark : farmMapStyles.light
         }

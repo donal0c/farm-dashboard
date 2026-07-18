@@ -418,9 +418,9 @@ export default function MyLandPage() {
             Tune the working brief
           </h2>
           <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
-            These choices change the ordering and language of the weekly brief
-            and the national series shown under Markets. They do not change the
-            underlying public data.
+            These choices tune the weekly brief when a relevant rule exists and
+            choose the national series shown under Markets. They do not change
+            the underlying public data.
           </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
