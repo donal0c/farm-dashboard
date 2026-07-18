@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { boundingBox, isIrishCoordinate } from "../lib/contracts/geo.ts";
+import {
+  boundingBox,
+  distanceKm,
+  isIrishCoordinate,
+} from "../lib/contracts/geo.ts";
 
 describe("geographic contracts", () => {
   it("accepts Irish points and rejects swapped or remote coordinates", () => {
@@ -28,5 +32,13 @@ describe("geographic contracts", () => {
       () => boundingBox({ latitude: 53.5, longitude: -7.5 }, 3),
       /no more than 2/,
     );
+  });
+
+  it("computes plausible short Irish distances", () => {
+    const distance = distanceKm(
+      { latitude: 53.2744, longitude: -9.0491 },
+      { latitude: 53.286, longitude: -9.035 },
+    );
+    assert.ok(distance > 1 && distance < 2);
   });
 });

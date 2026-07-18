@@ -16,8 +16,18 @@ import { useMemo, useState } from "react";
 import { IrelandMap } from "@/components/map/ireland-map";
 import { Button } from "@/components/ui/button";
 import type { SourceSnapshot } from "@/lib/contracts/source-snapshot";
+import {
+  enterpriseLabels,
+  enterpriseOptions,
+  weekFocusLabels,
+  weekFocusOptions,
+} from "@/lib/farm-plan";
 import type { CapCountyAggregate } from "@/lib/sources/cap";
-import { useUiStore } from "@/lib/store/ui-store";
+import {
+  type FarmEnterprise,
+  type FarmWeekFocus,
+  useUiStore,
+} from "@/lib/store/ui-store";
 
 type LatLng = { latitude: number; longitude: number };
 
@@ -32,6 +42,10 @@ function sourceAge(value: string | undefined) {
 export default function MyLandPage() {
   const farmLocation = useUiStore((state) => state.farmLocation);
   const setFarmLocation = useUiStore((state) => state.setFarmLocation);
+  const enterprise = useUiStore((state) => state.enterprise);
+  const setEnterprise = useUiStore((state) => state.setEnterprise);
+  const weekFocus = useUiStore((state) => state.weekFocus);
+  const setWeekFocus = useUiStore((state) => state.setWeekFocus);
   const hasHydrated = useUiStore((state) => state.hasHydrated);
   const [pendingPin, setPendingPin] = useState<LatLng | null>(null);
   const [isEditingPin, setIsEditingPin] = useState(false);
@@ -374,6 +388,65 @@ export default function MyLandPage() {
             </p>
           )}
         </aside>
+      </section>
+
+      <section
+        id="farm-settings"
+        className="grid gap-6 border-t border-border py-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,460px)]"
+      >
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Farm settings
+          </p>
+          <h2 className="font-editorial mt-1 text-3xl font-medium">
+            Tune the working brief
+          </h2>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
+            These choices change the ordering and language of the weekly brief
+            and the national series shown under Markets. They do not change the
+            underlying public data.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="grid gap-2 text-xs font-semibold text-muted-foreground">
+            Main enterprise
+            <select
+              value={enterprise}
+              onChange={(event) =>
+                setEnterprise(event.target.value as FarmEnterprise)
+              }
+              className="h-11 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+            >
+              {enterpriseOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <span className="font-normal">
+              Current: {enterpriseLabels[enterprise]}
+            </span>
+          </label>
+          <label className="grid gap-2 text-xs font-semibold text-muted-foreground">
+            This week’s focus
+            <select
+              value={weekFocus}
+              onChange={(event) =>
+                setWeekFocus(event.target.value as FarmWeekFocus)
+              }
+              className="h-11 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+            >
+              {weekFocusOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <span className="font-normal">
+              Current: {weekFocusLabels[weekFocus]}
+            </span>
+          </label>
+        </div>
       </section>
 
       <footer className="border-t border-border py-6 text-sm leading-6 text-muted-foreground">

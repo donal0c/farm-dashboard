@@ -41,3 +41,15 @@ export function boundingBox({ latitude, longitude }: LatLng, radius: number) {
     latitude + radius,
   ] as const;
 }
+
+export function distanceKm(a: LatLng, b: LatLng) {
+  const radians = Math.PI / 180;
+  const dLatitude = (b.latitude - a.latitude) * radians;
+  const dLongitude = (b.longitude - a.longitude) * radians;
+  const latitudeA = a.latitude * radians;
+  const latitudeB = b.latitude * radians;
+  const haversine =
+    Math.sin(dLatitude / 2) ** 2 +
+    Math.cos(latitudeA) * Math.cos(latitudeB) * Math.sin(dLongitude / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}

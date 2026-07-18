@@ -145,7 +145,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <footer className="border-t border-sidebar-border p-3">
           <div className="flex items-center justify-between px-2">
             <Link
-              href="/my-land"
+              href="/my-land#farm-settings"
               className="flex min-h-11 items-center gap-2 text-xs font-medium text-sidebar-foreground/60 hover:text-sidebar-accent-foreground"
             >
               <Settings2 className="h-4 w-4" />

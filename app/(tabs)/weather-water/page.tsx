@@ -1,602 +1,346 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Droplets, Thermometer, TreePine, Wind } from "lucide-react";
-import { useMemo, useState } from "react";
-import "maplibre-gl/dist/maplibre-gl.css";
-import MapView, { Layer, Source } from "react-map-gl/maplibre";
-import { ThemedChart } from "@/components/charts/themed-chart";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  ChartState,
-  DataNotice,
-  DecisionPanel,
-} from "@/components/ui/data-status";
-import { KpiCard } from "@/components/ui/kpi-card";
+  ArrowRight,
+  CloudRain,
+  CloudSun,
+  Droplets,
+  ExternalLink,
+  Gauge,
+  MapPin,
+  ShieldAlert,
+  Sun,
+  Wind,
+} from "lucide-react";
+import Link from "next/link";
+
 import type { SourceSnapshot } from "@/lib/contracts/source-snapshot";
-import { MET_STATIONS } from "@/lib/data/met-stations";
-import { weatherActionForEnterprise } from "@/lib/farm-plan";
 import type { MetWarning } from "@/lib/sources/met-warnings";
+import type { FarmForecast, ForecastDay } from "@/lib/sources/open-meteo";
+import type { NearbyOpwReading } from "@/lib/sources/opw";
 import { useUiStore } from "@/lib/store/ui-store";
+import { cn } from "@/lib/utils";
 
-type AgStation = {
-  "@name": string;
-  temp?: { "#text"?: string };
-  rain?: { "#text"?: string };
-  soil?: { "#text"?: string };
-  wind?: { "#text"?: string };
-  radiation?: { "#text"?: string };
-  "temp-diff"?: { "#text"?: string };
-  "rain-per"?: string;
-};
+function formatDay(date: string) {
+  return new Intl.DateTimeFormat("en-IE", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(new Date(`${date}T12:00:00Z`));
+}
 
-type OpwFeature = {
-  type: "Feature";
-  properties: {
-    station_ref: string;
-    station_name: string;
-    sensor_ref: string;
-    datetime: string;
-    value: string;
-    csv_file: string;
-  };
-  geometry: {
-    type: "Point";
-    coordinates: [number, number];
-  };
-};
+function formatTime(date: string) {
+  return new Intl.DateTimeFormat("en-IE", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(date));
+}
 
-type HistoricalWeatherResponse = {
-  rows: Array<{
-    date: string;
-    maxTemp: number | null;
-    minTemp: number | null;
-    rainfall: number | null;
-    soilTemp: number | null;
-    smd: number | null;
-  }>;
-  source: {
-    status: "live" | "unavailable";
-    warning?: string;
-  };
-};
+function weatherIcon(code: number) {
+  if (code <= 1) return Sun;
+  if (code >= 51) return CloudRain;
+  return CloudSun;
+}
 
-function asNumber(input?: string) {
-  const parsed = Number.parseFloat(input ?? "");
-  return Number.isFinite(parsed) ? parsed : 0;
+function ConditionsPlaceholder() {
+  return (
+    <output className="block animate-pulse" aria-label="Loading conditions">
+      <span className="block h-12 w-2/3 rounded bg-muted" />
+      <span className="mt-8 block h-60 rounded bg-muted" />
+    </output>
+  );
 }
 
 export default function WeatherWaterPage() {
-  const [selectedObservationStation, setSelectedObservationStation] = useState(
-    MET_STATIONS[0],
-  );
-  const [selectedHistoricalStation, setSelectedHistoricalStation] = useState(
-    MET_STATIONS[2],
-  );
-  const [historyFrom, setHistoryFrom] = useState("2020-01-01");
-  const [historyTo, setHistoryTo] = useState("2025-12-31");
-  const [selectedOpwFeature, setSelectedOpwFeature] =
-    useState<OpwFeature | null>(null);
-  const enterprise = useUiStore((state) => state.enterprise);
-  const weekFocus = useUiStore((state) => state.weekFocus);
+  const farmLocation = useUiStore((state) => state.farmLocation);
+  const hasHydrated = useUiStore((state) => state.hasHydrated);
 
-  const agReportQuery = useQuery({
-    queryKey: ["met", "ag-report"],
-    queryFn: async () => {
-      const response = await fetch("/api/data/met/ag-report");
-      if (!response.ok) throw new Error("ag report failed");
-      return response.json() as Promise<{ report?: { station?: AgStation[] } }>;
-    },
-    refetchInterval: 60 * 60 * 1000,
-  });
-
-  const observationsQuery = useQuery({
-    queryKey: ["met", "obs", selectedObservationStation.slug],
-    queryFn: async () => {
-      const response = await fetch(
-        `/api/data/met/observations?station=${selectedObservationStation.slug}`,
-      );
-      if (!response.ok) throw new Error("observations failed");
-      return response.json() as Promise<
-        Array<{
-          reportTime: string;
-          temperature: string;
-          rainfall: string;
-          pressure: string;
-        }>
-      >;
-    },
-    refetchInterval: 60 * 60 * 1000,
-  });
-
-  const warningsQuery = useQuery({
-    queryKey: ["met", "warnings"],
-    queryFn: async () => {
-      const response = await fetch("/api/data/met/warnings");
-      if (!response.ok) throw new Error("warnings failed");
-      return response.json() as Promise<SourceSnapshot<MetWarning[]>>;
-    },
-    refetchInterval: 15 * 60 * 1000,
-  });
-
-  const opwQuery = useQuery({
-    queryKey: ["opw", "latest"],
-    queryFn: async () => {
-      const response = await fetch("/api/data/opw/latest");
-      if (!response.ok) throw new Error("opw latest failed");
-      return response.json() as Promise<{
-        type: string;
-        features: OpwFeature[];
-      }>;
-    },
-    refetchInterval: 15 * 60 * 1000,
-  });
-
-  const selectedOpwSeriesQuery = useQuery({
-    queryKey: ["opw", "station", selectedOpwFeature?.properties.csv_file],
-    queryFn: async () => {
-      const csvFile = selectedOpwFeature?.properties.csv_file;
-      if (!csvFile) {
-        return [];
-      }
-      const response = await fetch(
-        `/api/data/opw/station?csv_file=${encodeURIComponent(csvFile)}`,
-      );
-      if (!response.ok) throw new Error("opw series failed");
-      return response.json() as Promise<
-        Array<{ datetime: string; value: number }>
-      >;
-    },
-    enabled: Boolean(selectedOpwFeature?.properties.csv_file),
-    refetchInterval: 15 * 60 * 1000,
-  });
-
-  const historicalQuery = useQuery({
+  const forecastQuery = useQuery({
     queryKey: [
-      "met",
-      "historical",
-      selectedHistoricalStation.historicalId,
-      historyFrom,
-      historyTo,
+      "farm-forecast",
+      farmLocation?.latitude,
+      farmLocation?.longitude,
     ],
     queryFn: async () => {
       const response = await fetch(
-        `/api/data/met/historical?stationId=${selectedHistoricalStation.historicalId}&from=${historyFrom}&to=${historyTo}`,
+        `/api/data/forecast?lat=${farmLocation?.latitude}&lng=${farmLocation?.longitude}`,
       );
-      if (!response.ok) throw new Error("historical failed");
-      return response.json() as Promise<HistoricalWeatherResponse>;
+      return (await response.json()) as SourceSnapshot<FarmForecast>;
     },
+    enabled: Boolean(farmLocation),
+  });
+  const warningsQuery = useQuery({
+    queryKey: ["met-warnings"],
+    queryFn: async () =>
+      (await fetch("/api/data/met/warnings").then((response) =>
+        response.json(),
+      )) as SourceSnapshot<MetWarning[]>,
+  });
+  const opwQuery = useQuery({
+    queryKey: ["opw-nearby", farmLocation?.latitude, farmLocation?.longitude],
+    queryFn: async () =>
+      (await fetch(
+        `/api/data/opw/nearby?lat=${farmLocation?.latitude}&lng=${farmLocation?.longitude}`,
+      ).then((response) => response.json())) as SourceSnapshot<
+        NearbyOpwReading[]
+      >,
+    enabled: Boolean(farmLocation),
   });
 
-  const agStations = agReportQuery.data?.report?.station ?? [];
-
-  const agKpis = useMemo(() => {
-    if (!agStations.length) {
-      return {
-        avgTemp: 0,
-        avgRain: 0,
-        avgSoil: 0,
-        avgWind: 0,
-      };
-    }
-
-    const totals = agStations.reduce(
-      (acc, station) => {
-        acc.temp += asNumber(station.temp?.["#text"]);
-        acc.rain += asNumber(station.rain?.["#text"]);
-        acc.soil += asNumber(station.soil?.["#text"]);
-        acc.wind += asNumber(station.wind?.["#text"]);
-        return acc;
-      },
-      { temp: 0, rain: 0, soil: 0, wind: 0 },
+  if (!hasHydrated) return <ConditionsPlaceholder />;
+  if (!farmLocation) {
+    return (
+      <div className="max-w-2xl border-t border-border pt-8">
+        <MapPin className="h-7 w-7 text-primary" />
+        <h1 className="font-editorial mt-5 text-5xl font-medium">
+          Conditions need a farm pin
+        </h1>
+        <p className="mt-4 text-base leading-7 text-muted-foreground">
+          Save a manual point first so forecast and water readings keep their
+          geographic meaning.
+        </p>
+        <Link
+          href="/this-week"
+          className="mt-6 inline-flex min-h-11 items-center gap-2 font-semibold text-primary"
+        >
+          Set up the farm
+          <ArrowRight className="h-4 w-4" />
+        </Link>
+      </div>
     );
+  }
 
-    return {
-      avgTemp: totals.temp / agStations.length,
-      avgRain: totals.rain / agStations.length,
-      avgSoil: totals.soil / agStations.length,
-      avgWind: totals.wind / agStations.length,
-    };
-  }, [agStations]);
-
-  const opwFeatureCollection = useMemo(
-    () => ({
-      type: "FeatureCollection" as const,
-      features: opwQuery.data?.features ?? [],
-    }),
-    [opwQuery.data?.features],
-  );
-
-  const historicalRows = historicalQuery.data?.rows ?? [];
-  const observationsRows = observationsQuery.data ?? [];
-  const warningRows = warningsQuery.data?.data ?? [];
-  const weatherDecisions = [
-    {
-      label: "Field access",
-      detail:
-        agKpis.avgRain > 20
-          ? "Recent rainfall is elevated; delay heavy machinery on vulnerable soils."
-          : "Rainfall signal is modest; check local ground conditions before field work.",
-    },
-    {
-      label: "This week's action",
-      detail: weatherActionForEnterprise(enterprise, weekFocus, {
-        rainMm: agKpis.avgRain,
-        windKts: agKpis.avgWind,
-        soilTemp: agKpis.avgSoil,
-      }),
-    },
-    {
-      label: "Water risk",
-      detail: selectedOpwFeature
-        ? "Monitor the selected OPW station trend before moving stock near watercourses."
-        : "Select the nearest OPW station to turn water level data into a local action.",
-    },
-  ];
+  const days = forecastQuery.data?.data?.days ?? [];
+  const warnings = warningsQuery.data?.data ?? [];
+  const readings = opwQuery.data?.data ?? [];
+  const totalRain = days.reduce((sum, day) => sum + day.rainMm, 0);
+  const peakGust = Math.max(...days.map((day) => day.windGustKph), 0);
 
   return (
-    <div className="grid gap-6">
-      <DecisionPanel
-        title="Weather and water actions"
-        items={weatherDecisions}
-      />
+    <div>
+      <header className="border-b border-border pb-7">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+          Conditions · {farmLocation.routingKey ?? farmLocation.label}
+        </p>
+        <h1 className="font-editorial mt-2 text-5xl font-medium tracking-[-0.035em] sm:text-6xl">
+          Weather at the pin
+        </h1>
+        <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">
+          A seven-day model forecast, current official warnings, and nearby OPW
+          sensor readings. Forecasts estimate conditions; sensors report their
+          own locations, not your fields.
+        </p>
+      </header>
 
-      <section className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
-        <KpiCard
-          label="Avg Temperature (16 stations)"
-          value={
-            agReportQuery.isLoading
-              ? "Loading"
-              : agStations.length
-                ? `${agKpis.avgTemp.toFixed(1)}\u00B0C`
-                : "Unavailable"
-          }
-          icon={Thermometer}
-          variant="warning"
-          trend={agStations.length ? "Met ag report" : "Feed not loaded"}
-        />
-        <KpiCard
-          label="Avg Rainfall (7-day)"
-          value={
-            agReportQuery.isLoading
-              ? "Loading"
-              : agStations.length
-                ? `${agKpis.avgRain.toFixed(1)} mm`
-                : "Unavailable"
-          }
-          icon={Droplets}
-          variant="info"
-          trend={
-            agKpis.avgRain > 20 ? "Field access caution" : "National average"
-          }
-        />
-        <KpiCard
-          label="Avg Soil Temp"
-          value={
-            agReportQuery.isLoading
-              ? "Loading"
-              : agStations.length
-                ? `${agKpis.avgSoil.toFixed(1)}\u00B0C`
-                : "Unavailable"
-          }
-          icon={TreePine}
-          variant="success"
-          trend={agStations.length ? "Seedbed context" : "Feed not loaded"}
-        />
-        <KpiCard
-          label="Avg Wind"
-          value={
-            agReportQuery.isLoading
-              ? "Loading"
-              : agStations.length
-                ? `${agKpis.avgWind.toFixed(1)} kts`
-                : "Unavailable"
-          }
-          icon={Wind}
-          variant="default"
-          trend={agKpis.avgWind > 10 ? "Spray caution" : "National average"}
-        />
+      <section className="grid gap-4 border-b border-border py-5 sm:grid-cols-3">
+        <div className="flex items-center gap-3">
+          <Droplets className="h-5 w-5 text-info" />
+          <div>
+            <p className="text-xs text-muted-foreground">Seven-day rain</p>
+            <p className="font-semibold">
+              {days.length ? `${totalRain.toFixed(1)} mm` : "Unavailable"}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <Wind className="h-5 w-5 text-primary" />
+          <div>
+            <p className="text-xs text-muted-foreground">Peak modelled gust</p>
+            <p className="font-semibold">
+              {days.length ? `${peakGust.toFixed(0)} km/h` : "Unavailable"}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <ShieldAlert className="h-5 w-5 text-warning" />
+          <div>
+            <p className="text-xs text-muted-foreground">Active notices</p>
+            <p className="font-semibold">
+              {warningsQuery.isLoading ? "Loading" : warnings.length}
+            </p>
+          </div>
+        </div>
       </section>
 
-      {historicalQuery.data?.source.status === "unavailable" ? (
-        <DataNotice title="Historical weather feed unavailable" tone="warning">
-          The daily station feed timed out or returned an unexpected format.
-          Live observations and OPW readings remain available.
-        </DataNotice>
+      {warnings.length ? (
+        <section className="border-b border-border py-7">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-warning">
+            Official notice
+          </p>
+          {warnings.map((warning) => (
+            <article
+              key={warning.id}
+              className="mt-4 border-l-2 border-warning bg-warning/10 px-5 py-5"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-warning">
+                  {warning.level} · expires {formatTime(warning.expiresAt)}
+                </p>
+                <a
+                  href="https://www.met.ie/warnings-today.html"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary"
+                >
+                  Met Éireann
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </div>
+              <h2 className="font-editorial mt-2 text-3xl font-medium">
+                {warning.headline}
+              </h2>
+              <p className="mt-3 max-w-3xl whitespace-pre-line text-sm leading-6 text-muted-foreground">
+                {warning.description}
+              </p>
+            </article>
+          ))}
+        </section>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Weather Warnings</CardTitle>
-          <CardDescription>
-            Met Eireann warnings feed (display required by Met Eireann Open Data
-            licence).
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {warningRows.length ? (
-            <div className="grid gap-2">
-              {warningRows.slice(0, 8).map((warning) => (
-                <div
-                  key={warning.id}
-                  className="border-l-2 border-warning bg-warning/10 p-4 text-sm"
-                >
-                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-warning">
-                    {warning.level} · until{" "}
-                    {new Intl.DateTimeFormat("en-IE", {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    }).format(new Date(warning.expiresAt))}
-                  </p>
-                  <p className="mt-2 font-semibold">{warning.headline}</p>
-                  <p className="mt-2 leading-6 text-muted-foreground">
-                    {warning.description}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No active warnings in current feed.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      <section className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Live Observations</CardTitle>
-            <CardDescription>
-              Hourly Met Eireann observations (auto refresh hourly).
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            <select
-              value={selectedObservationStation.slug}
-              onChange={(event) => {
-                const station = MET_STATIONS.find(
-                  (item) => item.slug === event.target.value,
+      <section className="border-b border-border py-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          Point forecast
+        </p>
+        <h2 className="font-editorial mt-1 text-3xl font-medium">
+          Seven-day outlook
+        </h2>
+        {forecastQuery.isLoading ? (
+          <p className="mt-5 text-sm text-muted-foreground">
+            Loading the current forecast…
+          </p>
+        ) : days.length ? (
+          <div className="mt-5 overflow-x-auto border-y border-border">
+            <div className="grid min-w-[760px] grid-cols-7">
+              {days.map((day: ForecastDay, index: number) => {
+                const Icon = weatherIcon(day.weatherCode);
+                return (
+                  <article
+                    key={day.date}
+                    className="border-r border-border px-3 py-5 last:border-r-0"
+                  >
+                    <p className="text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                      {index === 0 ? "Today" : formatDay(day.date)}
+                    </p>
+                    <Icon className="mt-4 h-6 w-6 text-primary" />
+                    <p className="font-editorial mt-3 text-3xl font-medium">
+                      {day.temperatureMaxC.toFixed(0)}°
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      low {day.temperatureMinC.toFixed(0)}°
+                    </p>
+                    <dl className="mt-4 grid gap-2 text-xs">
+                      <div>
+                        <dt className="text-muted-foreground">Rain</dt>
+                        <dd className="font-semibold">
+                          {day.rainMm.toFixed(1)} mm
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Chance</dt>
+                        <dd className="font-semibold">
+                          {day.precipitationProbability.toFixed(0)}%
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Gust</dt>
+                        <dd className="font-semibold">
+                          {day.windGustKph.toFixed(0)} km/h
+                        </dd>
+                      </div>
+                    </dl>
+                  </article>
                 );
-                if (station) setSelectedObservationStation(station);
-              }}
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-            >
-              {MET_STATIONS.map((station) => (
-                <option key={station.slug} value={station.slug}>
-                  {station.name}
-                </option>
-              ))}
-            </select>
-            <ChartState
-              isLoading={observationsQuery.isLoading}
-              isError={observationsQuery.isError}
-              isEmpty={!observationsRows.length}
-              emptyLabel={`No live rows returned for ${selectedObservationStation.name}; choose a nearby station or use the ag-report KPIs above.`}
-              loadingLabel="Checking today's station observations..."
-              minHeightClassName="min-h-56"
-            >
-              <ThemedChart
-                style={{ height: 280 }}
-                option={{
-                  tooltip: { trigger: "axis" },
-                  xAxis: {
-                    type: "category",
-                    data: observationsRows.map((row) => row.reportTime),
-                  },
-                  yAxis: [{ type: "value" }, { type: "value" }],
-                  series: [
-                    {
-                      name: "Temperature",
-                      type: "line",
-                      data: observationsRows.map((row) =>
-                        Number.parseFloat(row.temperature),
-                      ),
-                    },
-                    {
-                      name: "Rainfall",
-                      type: "bar",
-                      yAxisIndex: 1,
-                      data: observationsRows.map((row) =>
-                        Number.parseFloat(row.rainfall),
-                      ),
-                    },
-                  ],
-                }}
-              />
-            </ChartState>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Historical Weather Explorer</CardTitle>
-            <CardDescription>
-              Station selector + date range + historical daily chart.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            <div className="grid gap-2 md:grid-cols-3">
-              <select
-                value={selectedHistoricalStation.slug}
-                onChange={(event) => {
-                  const station = MET_STATIONS.find(
-                    (item) => item.slug === event.target.value,
-                  );
-                  if (station) setSelectedHistoricalStation(station);
-                }}
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-              >
-                {MET_STATIONS.map((station) => (
-                  <option key={`${station.slug}-hist`} value={station.slug}>
-                    {station.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="date"
-                value={historyFrom}
-                onChange={(event) => setHistoryFrom(event.target.value)}
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-              />
-              <input
-                type="date"
-                value={historyTo}
-                onChange={(event) => setHistoryTo(event.target.value)}
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-              />
+              })}
             </div>
-            <ChartState
-              isLoading={historicalQuery.isLoading}
-              isError={historicalQuery.isError}
-              isEmpty={!historicalRows.length}
-              emptyLabel="Historical rows are unavailable for this station or date range."
-              loadingLabel="Checking station history; this feed fails fast if Met Eireann is slow."
-              minHeightClassName="min-h-56"
-            >
-              <ThemedChart
-                style={{ height: 280 }}
-                option={{
-                  tooltip: { trigger: "axis" },
-                  dataZoom: [{ type: "inside" }, { type: "slider" }],
-                  xAxis: {
-                    type: "category",
-                    data: historicalRows.map((row) => row.date),
-                  },
-                  yAxis: [{ type: "value" }, { type: "value" }],
-                  series: [
-                    {
-                      name: "Max Temp",
-                      type: "line",
-                      data: historicalRows.map((row) => row.maxTemp),
-                    },
-                    {
-                      name: "Rainfall",
-                      type: "bar",
-                      yAxisIndex: 1,
-                      data: historicalRows.map((row) => row.rainfall),
-                    },
-                    {
-                      name: "SMD",
-                      type: "line",
-                      data: historicalRows.map((row) => row.smd),
-                    },
-                  ],
-                }}
-              />
-            </ChartState>
-          </CardContent>
-        </Card>
+          </div>
+        ) : (
+          <p className="mt-5 border-l-2 border-destructive py-2 pl-4 text-sm text-muted-foreground">
+            The forecast source is unavailable. No values have been substituted.
+          </p>
+        )}
+        <p className="mt-4 text-xs leading-5 text-muted-foreground">
+          Open-Meteo model estimate at {farmLocation.latitude.toFixed(4)},{" "}
+          {farmLocation.longitude.toFixed(4)}. Confirm field conditions and the
+          latest local forecast immediately before weather-sensitive work.
+        </p>
       </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>OPW Water Level Stations</CardTitle>
-          <CardDescription>
-            15-minute updates via polling. Click station marker for detail and
-            time series.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-[2fr_1fr]">
-          <div className="h-[420px] overflow-hidden rounded-lg border border-border">
-            <MapView
-              mapStyle="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
-              initialViewState={{ longitude: -7.5, latitude: 53.5, zoom: 6.2 }}
-              interactiveLayerIds={["opw-circles"]}
-              onClick={(event) => {
-                const feature = event.features?.[0];
-                if (!feature) return;
-                setSelectedOpwFeature(feature as unknown as OpwFeature);
-              }}
-            >
-              <Source id="opw" type="geojson" data={opwFeatureCollection}>
-                <Layer
-                  id="opw-circles"
-                  type="circle"
-                  paint={{
-                    "circle-radius": 4,
-                    "circle-color": [
-                      "step",
-                      ["to-number", ["get", "value"]],
-                      "#16a34a",
-                      1,
-                      "#f59e0b",
-                      2,
-                      "#dc2626",
-                    ],
-                    "circle-stroke-color": "#111827",
-                    "circle-stroke-width": 0.5,
-                    "circle-opacity": 0.85,
-                  }}
-                />
-              </Source>
-            </MapView>
+      <section className="py-8">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Nearby water sensors
+            </p>
+            <h2 className="font-editorial mt-1 text-3xl font-medium">
+              OPW readings
+            </h2>
           </div>
-
-          <div className="grid gap-3">
-            {selectedOpwFeature ? (
-              <>
-                <div className="rounded-md border border-border p-3 text-sm">
-                  <p>
-                    <strong>Station:</strong>{" "}
-                    {selectedOpwFeature.properties.station_name}
-                  </p>
-                  <p>
-                    <strong>Ref:</strong>{" "}
-                    {selectedOpwFeature.properties.station_ref} /
-                    {selectedOpwFeature.properties.sensor_ref}
-                  </p>
-                  <p>
-                    <strong>Current:</strong>{" "}
-                    {selectedOpwFeature.properties.value} m
-                  </p>
-                  <p>
-                    <strong>Timestamp:</strong>{" "}
-                    {selectedOpwFeature.properties.datetime}
+          <a
+            href="https://waterlevel.ie/"
+            target="_blank"
+            rel="noreferrer"
+            className="hidden min-h-11 items-center gap-2 text-sm font-semibold text-primary sm:flex"
+          >
+            waterlevel.ie
+            <ExternalLink className="h-4 w-4" />
+          </a>
+        </div>
+        <div className="mt-5 border-y border-border">
+          {opwQuery.isLoading ? (
+            <p className="py-6 text-sm text-muted-foreground">
+              Finding nearby current sensors…
+            </p>
+          ) : readings.length ? (
+            readings.slice(0, 6).map((reading, index) => (
+              <article
+                key={`${reading.stationRef}-${reading.sensorRef}`}
+                className="grid min-h-16 items-center gap-3 border-b border-border py-3 last:border-b-0 sm:grid-cols-[32px_minmax(0,1fr)_110px_150px]"
+              >
+                <span
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-full",
+                    index === 0
+                      ? "bg-info/15 text-info"
+                      : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  <Gauge className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold">{reading.stationName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {reading.distanceKm.toFixed(1)} km from farm pin
                   </p>
                 </div>
-                <ThemedChart
-                  style={{ height: 220 }}
-                  option={{
-                    tooltip: { trigger: "axis" },
-                    xAxis: {
-                      type: "category",
-                      data: (selectedOpwSeriesQuery.data ?? []).map(
-                        (row) => row.datetime,
-                      ),
-                    },
-                    yAxis: { type: "value" },
-                    dataZoom: [{ type: "inside" }, { type: "slider" }],
-                    series: [
-                      {
-                        type: "line",
-                        data: (selectedOpwSeriesQuery.data ?? []).map(
-                          (row) => row.value,
-                        ),
-                      },
-                    ],
-                  }}
-                />
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Select a station marker to view detailed readings.
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <p className="text-xs text-muted-foreground">
-        Data refresh policy: OPW every 15 minutes, Met observations hourly
-        (TanStack Query polling).
-      </p>
+                <div>
+                  <p className="text-xs text-muted-foreground">
+                    {reading.parameter}
+                  </p>
+                  <p className="font-semibold">
+                    {reading.value.toFixed(3)} {reading.unit}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Observed</p>
+                  <p className="text-xs font-semibold">
+                    {formatTime(reading.observedAt)}
+                  </p>
+                </div>
+              </article>
+            ))
+          ) : (
+            <p className="py-6 text-sm text-muted-foreground">
+              Current OPW readings are unavailable.
+            </p>
+          )}
+        </div>
+        <p className="mt-4 text-xs leading-5 text-muted-foreground">
+          Water levels are shown without an inferred safe, warning, or flood
+          threshold. Open the official station record and local guidance before
+          interpreting risk.
+        </p>
+      </section>
     </div>
   );
 }
