@@ -52,11 +52,12 @@ function warningSummary(description: string) {
     : firstSection;
 }
 
-function briefRank(item: BriefItem) {
+function briefRank(item: BriefItem, focus: FarmWeekFocus) {
   if (item.id === "weather-warning" && item.priority === "act") return 0;
-  if (item.priority === "act") return 1;
-  if (item.priority === "check") return 2;
-  return 3;
+  if (focus === "sales" && item.id === "compliance-check") return 1;
+  if (item.priority === "act") return 2;
+  if (item.priority === "check") return 3;
+  return 4;
 }
 
 const warningRank = { Red: 0, Orange: 1, Yellow: 2, Advisory: 3, Unknown: 4 };
@@ -217,7 +218,7 @@ export function deriveWeeklyBrief({
   });
 
   const rankedItems = [...items].sort(
-    (left, right) => briefRank(left) - briefRank(right),
+    (left, right) => briefRank(left, focus) - briefRank(right, focus),
   );
   const finalItem = rankedItems.at(-1);
   const finalItems =

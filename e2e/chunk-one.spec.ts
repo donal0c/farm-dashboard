@@ -42,7 +42,7 @@ function snapshot(
     status,
     observedAt: "2026-07-18T08:00:00.000Z",
     fetchedAt: "2026-07-18T08:05:00.000Z",
-    staleAfter: "2026-07-18T08:45:00.000Z",
+    staleAfter: "2026-07-19T08:45:00.000Z",
     warning:
       options.warning ??
       (status === "unavailable" ? "Source temporarily unavailable." : null),
@@ -65,6 +65,23 @@ const forecast = snapshot({
   })),
 });
 
+function forecastFor(rain: number[], gusts: number[]) {
+  return {
+    timezone: "Europe/Dublin",
+    latitude: farm.latitude,
+    longitude: farm.longitude,
+    days: rain.map((rainMm, index) => ({
+      date: `2026-07-${18 + index}`,
+      weatherCode: rainMm > 0 ? 61 : 1,
+      temperatureMaxC: 18 + (index % 3),
+      temperatureMinC: 9,
+      rainMm,
+      precipitationProbability: rainMm > 0 ? 80 : 10,
+      windGustKph: gusts[index] ?? 20,
+    })),
+  };
+}
+
 const emptyFeatureCollection = {
   type: "FeatureCollection",
   features: [],
@@ -78,38 +95,87 @@ const emptyJsonStat = {
   value: [],
 };
 
-async function setSavedFarm(page: Page) {
-  await page.addInitScript((savedFarm) => {
-    window.localStorage.setItem(
-      "agriview-farm-profile-v1",
-      JSON.stringify({
-        state: {
-          enterprise: "mixed",
-          weekFocus: "grazing",
-          farmCounty: savedFarm.county,
-          farmLocation: savedFarm,
-          preferredOpwStation: null,
-        },
-        version: 0,
-      }),
-    );
-  }, farm);
+async function setSavedFarm(
+  page: Page,
+  profile: {
+    enterprise?: "dairy" | "beef" | "sheep" | "tillage" | "mixed";
+    weekFocus?: "grazing" | "nutrients" | "spraying" | "sales" | "compliance";
+    theme?: "light" | "dark";
+    farmLabel?: string;
+    routingKey?: string;
+  } = {},
+) {
+  await page.addInitScript(
+    ({ savedFarm, savedProfile }) => {
+      window.localStorage.setItem(
+        "agriview-farm-profile-v1",
+        JSON.stringify({
+          state: {
+            enterprise: savedProfile.enterprise ?? "mixed",
+            weekFocus: savedProfile.weekFocus ?? "grazing",
+            farmCounty: savedFarm.county,
+            farmLocation: {
+              ...savedFarm,
+              label: savedProfile.farmLabel ?? savedFarm.label,
+              routingKey: savedProfile.routingKey ?? savedFarm.routingKey,
+            },
+            preferredOpwStation: null,
+          },
+          version: 0,
+        }),
+      );
+      if (savedProfile.theme) {
+        window.localStorage.setItem("theme", savedProfile.theme);
+      }
+    },
+    { savedFarm: farm, savedProfile: profile },
+  );
 }
 
 type LandState = "live" | "empty" | "unavailable" | "transport";
 type WarningState = "empty" | "unavailable";
+type ForecastState = "live" | "partial" | "unavailable";
 
 async function installApiMocks(
   page: Page,
-  options: { land?: LandState; warnings?: WarningState } = {},
+  options: {
+    land?: LandState;
+    warnings?: WarningState;
+    forecastState?: ForecastState;
+    forecastData?: (typeof forecast)["data"];
+    warningData?: unknown[];
+    warningStatus?: "live" | "partial";
+    forecastDelayMs?: number;
+  } = {},
 ) {
   const land = options.land ?? "live";
   const warnings = options.warnings ?? "empty";
+  const forecastState = options.forecastState ?? "live";
   await page.route("**/api/data/**", async (route) => {
     const url = new URL(route.request().url());
 
     if (url.pathname === "/api/data/forecast") {
-      await route.fulfill({ json: forecast });
+      if (options.forecastDelayMs) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, options.forecastDelayMs),
+        );
+      }
+      if (forecastState === "unavailable") {
+        await route.fulfill({
+          status: 502,
+          json: snapshot(null, { status: "unavailable" }),
+        });
+        return;
+      }
+      await route.fulfill({
+        json: snapshot(options.forecastData ?? forecast.data, {
+          status: forecastState,
+          warning:
+            forecastState === "partial"
+              ? "Two incomplete forecast days were excluded."
+              : null,
+        }),
+      });
       return;
     }
     if (url.pathname === "/api/data/met/warnings") {
@@ -123,7 +189,16 @@ async function installApiMocks(
         });
         return;
       }
-      await route.fulfill({ json: snapshot([], { scope: "national" }) });
+      await route.fulfill({
+        json: snapshot(options.warningData ?? [], {
+          scope: "national",
+          status: options.warningStatus ?? "live",
+          warning:
+            options.warningStatus === "partial"
+              ? "One warning record was excluded."
+              : null,
+        }),
+      });
       return;
     }
     if (url.pathname === "/api/data/lpis") {
@@ -473,7 +548,7 @@ test("contains focus in the mobile evidence dialog and restores its trigger", as
   await page.goto("/this-week");
 
   const trigger = page
-    .getByRole("button", { name: "See evidence and rule" })
+    .getByRole("button", { name: "Open evidence and rule" })
     .first();
   await trigger.click();
   const dialog = page.getByRole("dialog", { name: /Driest two-day window/ });
@@ -498,6 +573,54 @@ test("contains focus in the mobile evidence dialog and restores its trigger", as
   await expect(trigger).toBeFocused();
 });
 
+test("stacks the lead composition when the desktop evidence dock is open", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await setSavedFarm(page);
+  await installApiMocks(page);
+  await page.goto("/this-week");
+
+  await page
+    .getByRole("button", { name: "Open evidence and rule" })
+    .first()
+    .click();
+
+  const dialog = page.getByRole("dialog", { name: /Driest two-day window/ });
+  const lead = page.getByRole("article").first();
+  const chart = page.getByRole("region", { name: "Rain and gusts at the pin" });
+  const trigger = page
+    .getByRole("button", { name: "Open evidence and rule" })
+    .first();
+  await expect(dialog).toBeVisible();
+
+  const leadBox = await lead.boundingBox();
+  const chartBox = await chart.boundingBox();
+  expect(leadBox?.width ?? 0).toBeGreaterThan(500);
+  expect(chartBox?.y ?? 0).toBeGreaterThan(
+    (leadBox?.y ?? 0) + (leadBox?.height ?? 0) - 1,
+  );
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(0);
+  await expectNoSeriousAxeViolations(page);
+
+  await trigger.click();
+  await expect(dialog).toBeHidden();
+  await expect(trigger).toBeFocused();
+
+  await trigger.click();
+  await page
+    .getByRole("button", { name: "Close evidence", exact: true })
+    .click();
+  await expect(dialog).toBeHidden();
+  await expect(trigger).toBeFocused();
+});
+
 test("distinguishes an unavailable warning source from no active warnings", async ({
   page,
 }) => {
@@ -511,7 +634,7 @@ test("distinguishes an unavailable warning source from no active warnings", asyn
     }),
   ).toBeVisible();
   await expect(
-    page.getByText(/Do not interpret the missing warning row/),
+    page.getByText(/Do not interpret a missing warning row/),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Check warnings again" }),
@@ -669,4 +792,228 @@ test("lets the document scroll when the pointer is over the Land map", async ({
   await expect
     .poll(() => page.evaluate(() => Math.round(window.scrollY)))
     .toBeGreaterThanOrEqual(500);
+});
+
+const visualMatrix = [
+  { name: "phone", width: 390, height: 844 },
+  { name: "tablet", width: 768, height: 1024 },
+  { name: "desktop", width: 1280, height: 900 },
+] as const;
+
+// Pixel baselines are maintained on the project's macOS review workstation;
+// functional, responsive, and accessibility assertions remain platform-neutral.
+for (const viewport of visualMatrix) {
+  for (const theme of ["light", "dark"] as const) {
+    test(`This Week visual lock · ${viewport.name} · ${theme}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      await setSavedFarm(page, { theme });
+      await installApiMocks(page);
+      await page.goto("/this-week");
+      await expect(
+        page.getByRole("heading", { name: "What deserves your attention" }),
+      ).toBeVisible();
+      await expect(page.locator("html")).toHaveClass(
+        theme === "dark" ? /dark/ : /light/,
+      );
+      await expect(page).toHaveScreenshot(
+        `this-week-${viewport.name}-${theme}.png`,
+        {
+          fullPage: true,
+          animations: "disabled",
+          caret: "hide",
+          maxDiffPixelRatio: 0.001,
+        },
+      );
+    });
+  }
+}
+
+test("renders ground, spraying, warning, and sales lead variants honestly", async ({
+  page,
+}) => {
+  const orangeWarning = {
+    id: "orange-galway",
+    level: "Orange",
+    headline:
+      "Orange wind warning for Galway with a deliberately long operational headline",
+    description:
+      "Very strong winds are expected. Check exposed work, loose equipment, travel and animal welfare arrangements before acting.",
+    issuedAt: "2026-07-18T08:00:00Z",
+    startsAt: "2026-07-18T09:00:00Z",
+    expiresAt: "2026-07-20T23:00:00Z",
+    regions: ["EI10"],
+  };
+
+  await setSavedFarm(page);
+  await installApiMocks(page, {
+    forecastData: forecastFor(
+      [4, 5, 6, 7, 4, 2, 1],
+      [20, 22, 24, 40, 30, 22, 18],
+    ),
+  });
+  await page.goto("/this-week");
+  await expect(
+    page.getByRole("heading", { name: /Protect vulnerable ground/ }),
+  ).toBeVisible();
+
+  await page.unroute("**/api/data/**");
+  await setSavedFarm(page, { enterprise: "tillage", weekFocus: "spraying" });
+  await installApiMocks(page, {
+    forecastData: forecastFor(
+      [4, 0, 0.2, 7, 3, 1, 2],
+      [20, 18, 21, 30, 20, 19, 18],
+    ),
+  });
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: /Check the .* window/ }),
+  ).toBeVisible();
+
+  await page.unroute("**/api/data/**");
+  await setSavedFarm(page);
+  await installApiMocks(page, { warningData: [orangeWarning] });
+  await page.reload();
+  await expect(
+    page.getByRole("heading", {
+      name: /Orange wind warning for Galway/,
+    }),
+  ).toBeVisible();
+  const overflow = await page.evaluate(() => ({
+    pixels: document.documentElement.scrollWidth - innerWidth,
+    elements: Array.from(document.querySelectorAll<HTMLElement>("body *"))
+      .filter((element) => element.getBoundingClientRect().right > innerWidth)
+      .slice(0, 8)
+      .map((element) => ({
+        tag: element.tagName,
+        text: element.textContent?.trim().slice(0, 80),
+        right: Math.round(element.getBoundingClientRect().right),
+        width: Math.round(element.getBoundingClientRect().width),
+        className: element.className,
+      })),
+  }));
+  expect(overflow.pixels, JSON.stringify(overflow.elements, null, 2)).toBe(0);
+
+  await page.unroute("**/api/data/**");
+  await setSavedFarm(page, { enterprise: "dairy", weekFocus: "sales" });
+  await installApiMocks(page);
+  await page.reload();
+  await expect(
+    page.getByRole("heading", {
+      name: "Keep sale timing separate from field conditions",
+    }),
+  ).toBeVisible();
+});
+
+test("keeps partial and unavailable source states explicit", async ({
+  page,
+}) => {
+  await setSavedFarm(page);
+  await installApiMocks(page, {
+    forecastState: "partial",
+    forecastData: forecastFor([0, 0, 0, 0, 0], [20, 21, 22, 23, 24]),
+    warningStatus: "partial",
+  });
+  await page.goto("/this-week");
+  await expect(
+    page.getByText("Partial forecast coverage", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Partial", { exact: true }).first(),
+  ).toBeVisible();
+  const alignment = await page.evaluate(() => {
+    const chartLabels = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        '[data-testid="weekly-day-label"]',
+      ),
+    ).map((element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.left + rect.width / 2;
+    });
+    const valueCells = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        '[data-testid="weekly-day-value"]',
+      ),
+    ).map((element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.left + rect.width / 2;
+    });
+    return { chartLabels, valueCells };
+  });
+  expect(alignment.chartLabels).toHaveLength(5);
+  expect(alignment.valueCells).toHaveLength(5);
+  for (const [index, chartCenter] of alignment.chartLabels.entries()) {
+    expect(
+      Math.abs(chartCenter - (alignment.valueCells[index] ?? 0)),
+    ).toBeLessThan(1);
+  }
+
+  await page.unroute("**/api/data/**");
+  await installApiMocks(page, { forecastState: "unavailable" });
+  await page.reload();
+  await expect(page.getByText("Forecast unavailable")).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "No weekly advice is safer than invented advice.",
+    }),
+  ).toBeVisible();
+});
+
+test("preserves composition at 200% text and with long farm context", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await setSavedFarm(page, {
+    farmLabel:
+      "A deliberately long saved routing-area description for field testing",
+    routingKey: "EXTRA-LONG-ROUTING-LABEL",
+  });
+  await installApiMocks(page);
+  await page.goto("/this-week");
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "200%";
+  });
+  await expect(
+    page.getByRole("heading", { name: "What deserves your attention" }),
+  ).toBeVisible();
+  const overflow = await page.evaluate(() => ({
+    pixels: document.documentElement.scrollWidth - innerWidth,
+    elements: Array.from(document.querySelectorAll<HTMLElement>("body *"))
+      .filter((element) => element.getBoundingClientRect().right > innerWidth)
+      .slice(0, 8)
+      .map((element) => ({
+        tag: element.tagName,
+        text: element.textContent?.trim().slice(0, 80),
+        right: Math.round(element.getBoundingClientRect().right),
+        width: Math.round(element.getBoundingClientRect().width),
+        className: element.className,
+      })),
+  }));
+  expect(overflow.pixels, JSON.stringify(overflow.elements, null, 2)).toBe(0);
+  await expectNoSeriousAxeViolations(page);
+});
+
+test("reserves the lead composition while forecast data loads", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await setSavedFarm(page);
+  await installApiMocks(page, { forecastDelayMs: 900 });
+  await page.goto("/this-week");
+  await expect(
+    page.getByRole("heading", { name: "What deserves your attention" }),
+  ).toBeVisible();
+  const loadingTop = (
+    await page.getByLabel("Loading weekly brief").last().boundingBox()
+  )?.y;
+  await expect(
+    page.getByRole("heading", { name: /looks least constrained/ }),
+  ).toBeVisible();
+  const finalTop = (
+    await page
+      .getByLabel("Lead weekly priority and forecast evidence")
+      .boundingBox()
+  )?.y;
+  expect(Math.abs((loadingTop ?? 0) - (finalTop ?? 0))).toBeLessThan(24);
 });

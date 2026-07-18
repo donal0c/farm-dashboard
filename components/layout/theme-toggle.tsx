@@ -26,9 +26,11 @@ export function ThemeToggle({ surface = "sidebar" }: ThemeToggleProps) {
 
   if (!mounted) {
     return (
-      <button type="button" className={className}>
+      <button type="button" className={className} aria-label="Theme">
         <Sun className="h-4 w-4" />
-        <span>Theme</span>
+        <span className={surface === "page" ? "sr-only" : undefined}>
+          Theme
+        </span>
       </button>
     );
   }
@@ -38,11 +40,14 @@ export function ThemeToggle({ surface = "sidebar" }: ThemeToggleProps) {
   return (
     <button
       type="button"
+      aria-label={isDark ? "Light mode" : "Dark mode"}
       onClick={() => setTheme(isDark ? "light" : "dark")}
       className={className}
     >
       {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-      <span>{isDark ? "Light mode" : "Dark mode"}</span>
+      <span className={surface === "page" ? "sr-only" : undefined}>
+        {isDark ? "Light mode" : "Dark mode"}
+      </span>
     </button>
   );
 }

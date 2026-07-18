@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Keep development-only controls out of accessibility and visual QA.
+  devIndicators: false,
 };
 
 export default nextConfig;

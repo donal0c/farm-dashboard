@@ -34,7 +34,7 @@ export function EvidencePanel({
   }, [returnFocusId, setEvidenceId]);
 
   useEffect(() => {
-    const media = window.matchMedia("(max-width: 1023px)");
+    const media = window.matchMedia("(max-width: 1279px)");
     const update = () => setIsDialog(media.matches);
     update();
     media.addEventListener("change", update);
@@ -67,7 +67,7 @@ export function EvidencePanel({
     <>
       <button
         type="button"
-        className="fixed inset-0 z-40 bg-foreground/35 backdrop-blur-[2px] lg:hidden"
+        className="fixed inset-0 z-40 bg-foreground/45 backdrop-blur-[2px] xl:hidden"
         onClick={closeEvidence}
         aria-label="Close evidence overlay"
       />
@@ -78,16 +78,16 @@ export function EvidencePanel({
         aria-modal={isDialog ? true : undefined}
         aria-labelledby="evidence-panel-title"
         tabIndex={-1}
-        className="fixed inset-x-3 bottom-20 top-20 z-50 overflow-auto rounded-md border border-border bg-card shadow-[0_18px_45px_-20px_rgba(28,37,29,0.65)] lg:sticky lg:inset-auto lg:top-24 lg:z-auto lg:max-h-[calc(100dvh-8rem)]"
+        className="fixed inset-x-3 bottom-20 top-16 z-50 overflow-auto rounded-md border border-border bg-card shadow-[0_18px_45px_-20px_rgba(28,37,29,0.65)] xl:sticky xl:inset-auto xl:top-10 xl:z-auto xl:max-h-[calc(100dvh-5rem)] xl:rounded-none xl:shadow-none"
       >
-        <div className="flex items-start justify-between border-b border-border px-5 py-4">
+        <div className="paper-grain flex items-start justify-between border-b border-border px-5 py-5">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">
               Why this is here
             </p>
             <h2
               id="evidence-panel-title"
-              className="font-editorial mt-1 text-2xl font-medium"
+              className="font-editorial mt-2 text-[1.7rem] font-medium leading-tight"
             >
               {evidence.label}
             </h2>
@@ -102,10 +102,8 @@ export function EvidencePanel({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="grid gap-5 px-5 py-5 text-sm">
-          <p className="leading-6 text-muted-foreground">
-            {evidence.explanation}
-          </p>
+        <div className="grid gap-5 px-5 py-6 text-sm">
+          <p className="leading-6 text-foreground/78">{evidence.explanation}</p>
           <dl className="grid gap-3 border-y border-border py-4">
             <div className="flex items-start justify-between gap-4">
               <dt className="text-muted-foreground">Scope</dt>

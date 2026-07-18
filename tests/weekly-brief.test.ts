@@ -323,7 +323,7 @@ describe("deterministic weekly briefing", () => {
       now: new Date("2026-07-18T08:00:00Z"),
     });
 
-    const boundary = brief.items.at(-1);
+    const boundary = brief.items[0];
     assert.equal(boundary?.id, "compliance-check");
     assert.equal(boundary?.eyebrow, "Commercial boundary");
     assert.match(boundary?.title ?? "", /sale timing/i);
