@@ -82,7 +82,9 @@ export default function EnvironmentCompliancePage() {
         `/api/data/nitrates?lat=${location.latitude}&lng=${location.longitude}&radius=0.3`,
       );
       if (!response.ok) throw new Error("Nitrates failed");
-      return response.json() as Promise<GeoJSON.FeatureCollection>;
+      return response.json() as Promise<
+        SourceSnapshot<GeoJSON.FeatureCollection>
+      >;
     },
   });
 
@@ -370,11 +372,11 @@ export default function EnvironmentCompliancePage() {
                 </Source>
               ) : null}
 
-              {showNitrate && nitratesQuery.data ? (
+              {showNitrate && nitratesQuery.data?.data ? (
                 <Source
                   id="nitrates-zone"
                   type="geojson"
-                  data={nitratesQuery.data}
+                  data={nitratesQuery.data.data}
                 >
                   <Layer
                     id="nitrate-zone-fill"

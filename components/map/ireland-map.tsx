@@ -3,7 +3,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { useEffect, useState } from "react";
-import MapView, { Layer, Source } from "react-map-gl/maplibre";
+import MapView, { Layer, Marker, Source } from "react-map-gl/maplibre";
 import { farmMapColors, farmMapStyle } from "@/lib/map/style";
 
 type LatLng = { latitude: number; longitude: number };
@@ -47,6 +47,10 @@ export function IrelandMap({
       <MapView
         mapStyle={farmMapStyle}
         {...viewState}
+        maxBounds={[
+          [-11.2, 51],
+          [-5, 55.9],
+        ]}
         onMove={(event) => {
           setViewState(event.viewState);
         }}
@@ -57,6 +61,17 @@ export function IrelandMap({
           });
         }}
       >
+        <Marker
+          longitude={center.longitude}
+          latitude={center.latitude}
+          anchor="bottom"
+        >
+          <span
+            className="block h-4 w-4 rounded-full border-[3px] border-card bg-primary shadow-md"
+            role="img"
+            aria-label="Saved farm point"
+          />
+        </Marker>
         {showSoilLayer ? (
           <Source
             id="soil-wms"

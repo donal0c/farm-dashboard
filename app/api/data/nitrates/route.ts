@@ -1,72 +1,103 @@
 import { NextResponse } from "next/server";
 
-let cachedCollectionId: string | null = null;
+import { boundingBox, isIrishCoordinate } from "@/lib/contracts/geo";
+import { unavailableSnapshot } from "@/lib/contracts/source-snapshot";
 
-async function getCollectionId() {
-  if (cachedCollectionId) {
-    return cachedCollectionId;
-  }
+const COLLECTIONS_URL =
+  "https://geoapi.opendata.agriculture.gov.ie/nitrates/collections";
+let cachedCollection: { id: string; title: string } | null = null;
 
-  const response = await fetch(
-    "https://geoapi.opendata.agriculture.gov.ie/nitrates/collections?f=json",
-    {
-      next: { revalidate: 60 * 60 },
-    },
-  );
+async function getCurrentCollection() {
+  if (cachedCollection) return cachedCollection;
 
+  const response = await fetch(`${COLLECTIONS_URL}?f=json`, {
+    next: { revalidate: 24 * 60 * 60 },
+    signal: AbortSignal.timeout(8_000),
+  });
   if (!response.ok) {
-    return null;
+    throw new Error(`DAFM nitrates catalogue returned ${response.status}.`);
   }
-
   const payload = (await response.json()) as {
-    collections?: Array<{ id: string }>;
+    collections?: Array<{ id: string; title?: string }>;
   };
-
-  cachedCollectionId = payload.collections?.[0]?.id ?? null;
-  return cachedCollectionId;
+  const collection = payload.collections?.find((item) =>
+    /nitrate|derogation/i.test(`${item.id} ${item.title ?? ""}`),
+  );
+  if (!collection) {
+    throw new Error("No current DAFM nitrates collection was found.");
+  }
+  cachedCollection = {
+    id: collection.id,
+    title: collection.title ?? "DAFM nitrates map",
+  };
+  return cachedCollection;
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const lat = Number.parseFloat(searchParams.get("lat") ?? "");
-  const lng = Number.parseFloat(searchParams.get("lng") ?? "");
+  const latitude = Number.parseFloat(searchParams.get("lat") ?? "");
+  const longitude = Number.parseFloat(searchParams.get("lng") ?? "");
   const radius = Number.parseFloat(searchParams.get("radius") ?? "0.2");
 
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+  if (!isIrishCoordinate({ latitude, longitude })) {
     return NextResponse.json(
-      { error: "lat and lng are required" },
+      { error: "A valid latitude and longitude in Ireland are required." },
       { status: 400 },
     );
   }
 
-  const collectionId = await getCollectionId();
-  if (!collectionId) {
+  try {
+    const bbox = boundingBox({ latitude, longitude }, radius);
+    const collection = await getCurrentCollection();
+    const url = new URL(`${COLLECTIONS_URL}/${collection.id}/items`);
+    url.searchParams.set("f", "json");
+    url.searchParams.set("bbox", bbox.join(","));
+    url.searchParams.set("limit", "500");
+
+    const response = await fetch(url, {
+      next: { revalidate: 24 * 60 * 60 },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) {
+      throw new Error(`DAFM nitrates map returned ${response.status}.`);
+    }
+    const data = (await response.json()) as GeoJSON.FeatureCollection;
+    const fetchedAt = new Date();
+    return NextResponse.json({
+      data,
+      source: {
+        id: `dafm-nitrates-${collection.id}`,
+        label: collection.title,
+        url: `${COLLECTIONS_URL}/${collection.id}`,
+      },
+      scope: "nearby",
+      status: "live",
+      observedAt: null,
+      fetchedAt: fetchedAt.toISOString(),
+      staleAfter: new Date(
+        fetchedAt.getTime() + 24 * 60 * 60 * 1000,
+      ).toISOString(),
+      warning:
+        "This is a national screening layer. Confirm the current holding and field rules in official DAFM guidance.",
+      confidence: "authoritative",
+    });
+  } catch (error) {
     return NextResponse.json(
-      { error: "nitrates collection unavailable" },
+      unavailableSnapshot<GeoJSON.FeatureCollection>({
+        source: {
+          id: "dafm-nitrates",
+          label: "DAFM nitrates map",
+          url: COLLECTIONS_URL,
+        },
+        scope: "nearby",
+        staleAfter: new Date().toISOString(),
+        warning:
+          error instanceof Error
+            ? error.message
+            : "DAFM nitrates data is temporarily unavailable.",
+        confidence: "authoritative",
+      }),
       { status: 502 },
     );
   }
-
-  const minLng = lng - radius;
-  const minLat = lat - radius;
-  const maxLng = lng + radius;
-  const maxLat = lat + radius;
-
-  const url = new URL(
-    `https://geoapi.opendata.agriculture.gov.ie/nitrates/collections/${collectionId}/items`,
-  );
-  url.searchParams.set("f", "json");
-  url.searchParams.set("bbox", `${minLng},${minLat},${maxLng},${maxLat}`);
-  url.searchParams.set("limit", "500");
-
-  const response = await fetch(url, { cache: "no-store" });
-  if (!response.ok) {
-    return NextResponse.json(
-      { error: "nitrates fetch failed" },
-      { status: 502 },
-    );
-  }
-
-  const featureCollection = await response.json();
-  return NextResponse.json(featureCollection);
 }
