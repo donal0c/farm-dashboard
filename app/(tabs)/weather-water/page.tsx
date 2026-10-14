@@ -1,21 +1,19 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import {
-  ArrowRight,
-  CircleAlert,
-  Droplets,
-  ExternalLink,
-  Gauge,
-  MapPin,
-  ShieldAlert,
-  Wind,
-} from "lucide-react";
-import Link from "next/link";
+import { ExternalLink, Gauge } from "lucide-react";
 
 import { ForecastComparison } from "@/components/conditions/forecast-comparison";
+import { NeedsFarm, PageSkeleton } from "@/components/ui/needs-farm";
+import { Fact, PageIntro, SectionHeading } from "@/components/ui/page-intro";
+import { PriorityMark } from "@/components/ui/priority-mark";
+import { SourceNotice } from "@/components/ui/source-notice";
 import { fetchValidatedSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
 import { sourceQueryStaleTime } from "@/lib/client/source-query-policy";
+import {
+  normalizeIrishCounty,
+  warningRegionsIncludeCounty,
+} from "@/lib/ireland/counties";
 import { type MetWarning, metWarningsSchema } from "@/lib/sources/met-warnings";
 import {
   type FarmForecast,
@@ -28,6 +26,8 @@ import {
 import { useUiStore } from "@/lib/store/ui-store";
 import { cn } from "@/lib/utils";
 
+const STALE_READING_HOURS = 6;
+
 function formatTime(date: string) {
   return new Intl.DateTimeFormat("en-IE", {
     dateStyle: "medium",
@@ -35,12 +35,72 @@ function formatTime(date: string) {
   }).format(new Date(date));
 }
 
-function ConditionsPlaceholder() {
+function readingAge(observedAt: string, now: number) {
+  const ageMs = now - Date.parse(observedAt);
+  const hours = ageMs / 3_600_000;
+  const formatter = new Intl.RelativeTimeFormat("en-IE", { numeric: "auto" });
+  const label =
+    hours < 1
+      ? formatter.format(-Math.max(1, Math.round(ageMs / 60_000)), "minute")
+      : hours < 48
+        ? formatter.format(-Math.round(hours), "hour")
+        : formatter.format(-Math.round(hours / 24), "day");
+  return { label, stale: hours > STALE_READING_HOURS };
+}
+
+function titleCase(value: string) {
+  return value.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function WarningCard({
+  warning,
+  county,
+}: {
+  warning: MetWarning;
+  county: string | null;
+}) {
+  const covers = warningRegionsIncludeCounty(warning.regions, county);
+  const regional =
+    warning.regions.length > 0 &&
+    !warning.regions.some((item) => /ireland|national|all/i.test(item));
+  const kind = covers
+    ? warning.level === "Red" || warning.level === "Orange"
+      ? "act"
+      : "check"
+    : regional && county
+      ? "watch"
+      : "check";
+  const countyLabel = county ? titleCase(county) : null;
   return (
-    <output className="block animate-pulse" aria-label="Loading conditions">
-      <span className="block h-12 w-2/3 rounded bg-muted" />
-      <span className="mt-8 block h-60 rounded bg-muted" />
-    </output>
+    <article className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-4 py-5 sm:grid-cols-[3.25rem_minmax(0,1fr)] sm:gap-x-5">
+      <PriorityMark kind={kind} />
+      <div className="min-w-0">
+        <h3 className="display display-sm max-w-[36ch]">{warning.headline}</h3>
+        <p className="meta mt-2">
+          In force until {formatTime(warning.expiresAt)}
+          {warning.certainty ? ` · ${warning.certainty.toLowerCase()}` : ""}
+          {countyLabel
+            ? covers
+              ? ` · lists ${countyLabel}`
+              : regional
+                ? ` · ${countyLabel} not listed`
+                : ""
+            : ""}
+        </p>
+        <p className="mt-2 max-w-[66ch] text-sm leading-6 text-muted-foreground">
+          {warning.description}
+        </p>
+        <a
+          href="https://www.met.ie/warnings-today.html"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-2 inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-primary hover:underline"
+        >
+          Read it on Met Éireann
+          <ExternalLink className="h-4 w-4" aria-hidden="true" />
+        </a>
+      </div>
+    </article>
   );
 }
 
@@ -82,32 +142,20 @@ export default function WeatherWaterPage() {
     staleTime: sourceQueryStaleTime.opw,
   });
 
-  if (!hasHydrated) return <ConditionsPlaceholder />;
+  if (!hasHydrated) return <PageSkeleton label="Loading conditions" />;
   if (!farmLocation) {
     return (
-      <div className="max-w-2xl border-t border-border pt-8">
-        <MapPin className="h-7 w-7 text-primary" />
-        <h1 className="font-editorial mt-5 text-5xl font-medium">
-          Conditions need a farm pin
-        </h1>
-        <p className="mt-4 text-base leading-7 text-muted-foreground">
-          Save a manual point first so forecast and water readings keep their
-          geographic meaning.
-        </p>
-        <Link
-          href="/this-week"
-          className="mt-6 inline-flex min-h-11 items-center gap-2 font-semibold text-primary"
-        >
-          Set up the farm
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-      </div>
+      <NeedsFarm
+        title="Conditions need a farm pin"
+        detail="Save a manual point first so forecast and water readings keep their geographic meaning."
+      />
     );
   }
 
   const days = forecastQuery.data?.data?.days ?? [];
   const warnings = warningsQuery.data?.data ?? [];
   const readings = opwQuery.data?.data ?? [];
+  const county = normalizeIrishCounty(farmLocation.county);
   const totalRain = days.reduce((sum, day) => sum + day.rainMm, 0);
   const peakGust = Math.max(...days.map((day) => day.windGustKph), 0);
   const forecastUnavailable =
@@ -122,187 +170,152 @@ export default function WeatherWaterPage() {
     forecastPartial && days.length
       ? `Rain, ${days.length} validated days`
       : "Seven-day rain";
+  const now = Date.now();
+  const coveringCount = warnings.filter((warning) =>
+    warningRegionsIncludeCounty(warning.regions, county),
+  ).length;
 
   return (
     <div className="min-w-0 overflow-x-clip">
-      <header className="border-b border-border pb-7">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-          Conditions · {farmLocation.routingKey ?? farmLocation.label}
-        </p>
-        <h1 className="font-editorial mt-2 text-5xl font-medium tracking-[-0.035em] sm:text-6xl">
-          A working weather window
-        </h1>
-        <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">
-          Compare rain, temperature, wind and official notices before planning
-          field work. Forecasts are model estimates; nearby OPW sensors are raw
-          observations at their own locations, not measurements of your fields.
-        </p>
-      </header>
+      <PageIntro
+        title="A working weather window"
+        lede="Compare rain, temperature, wind and official notices before planning field work. Forecasts are model estimates; nearby OPW sensors are raw observations at their own locations, not measurements of your fields."
+      />
 
-      <section className="grid gap-4 border-b border-border py-5 sm:grid-cols-3">
-        <div className="flex items-center gap-3">
-          <Droplets className="h-5 w-5 text-info" />
-          <div>
-            <p className="text-xs text-muted-foreground">{rainScopeLabel}</p>
-            <p className="font-semibold">
-              {forecastQuery.isLoading
-                ? "Loading"
-                : days.length
-                  ? `${totalRain.toFixed(1)} mm`
-                  : "Unavailable"}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <Wind className="h-5 w-5 text-primary" />
-          <div>
-            <p className="text-xs text-muted-foreground">Peak modelled gust</p>
-            <p className="font-semibold">
-              {forecastQuery.isLoading
-                ? "Loading"
-                : days.length
-                  ? `${peakGust.toFixed(0)} km/h`
-                  : "Unavailable"}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <ShieldAlert className="h-5 w-5 text-warning" />
-          <div>
-            <p className="text-xs text-muted-foreground">Active notices</p>
-            <p className="font-semibold">
-              {warningsQuery.isLoading
-                ? "Loading"
-                : warningsUnavailable
-                  ? "Unavailable"
-                  : warnings.length}
-            </p>
-          </div>
+      <dl className="grid gap-4 border-b border-rule py-5 sm:grid-cols-3">
+        <Fact label={rainScopeLabel}>
+          {forecastQuery.isLoading
+            ? "Loading"
+            : days.length
+              ? `${totalRain.toFixed(1)} mm`
+              : "Unavailable"}
+        </Fact>
+        <Fact label="Peak modelled gust">
+          {forecastQuery.isLoading
+            ? "Loading"
+            : days.length
+              ? `${peakGust.toFixed(0)} km/h`
+              : "Unavailable"}
+        </Fact>
+        <Fact label="Active notices">
+          {warningsQuery.isLoading
+            ? "Loading"
+            : warningsUnavailable
+              ? "Unavailable"
+              : county
+                ? `${warnings.length} · ${coveringCount} ${coveringCount === 1 ? "lists" : "list"} ${titleCase(county)}`
+                : warnings.length}
+        </Fact>
+      </dl>
+
+      <section
+        className="border-b border-rule py-7"
+        aria-label="Official notices"
+      >
+        <SectionHeading
+          title="Official notices"
+          lede="Met Éireann warnings in force now, ordered as published. Red or Orange is an Act, Yellow a Check, and a warning that does not list your county only a Watch."
+          aside={
+            <a
+              href="https://www.met.ie/warnings-today.html"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-primary hover:underline"
+            >
+              Met Éireann
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            </a>
+          }
+        />
+        <div className="mt-3 divide-y divide-rule">
+          {warningsQuery.isLoading ? (
+            <output
+              className="block animate-pulse"
+              aria-label="Loading official weather notices"
+            >
+              <span className="block h-5 w-44 rounded-sm bg-muted" />
+              <span className="mt-3 block h-24 rounded-md bg-muted" />
+            </output>
+          ) : (
+            <>
+              {warningsPartial ? (
+                <SourceNotice
+                  tone="partial"
+                  title={
+                    warnings.length
+                      ? "Partial warning feed"
+                      : "Official warning feed partially available"
+                  }
+                  detail={`${warningsQuery.data?.warning ?? "Some source records were excluded."} ${warnings.length ? "" : "No active notice is shown from the validated records that remain."} Check Met Éireann directly.`}
+                  onRetry={() => void warningsQuery.refetch()}
+                />
+              ) : null}
+              {warningsUnavailable ? (
+                <SourceNotice
+                  tone="unavailable"
+                  title="Official warning feed unavailable"
+                  detail="AgriView cannot confirm warning status. Check Met Éireann directly before weather-sensitive work."
+                  onRetry={() => void warningsQuery.refetch()}
+                />
+              ) : null}
+              {warnings.map((warning) => (
+                <WarningCard
+                  key={warning.id}
+                  warning={warning}
+                  county={county}
+                />
+              ))}
+              {!warnings.length && !warningsUnavailable && !warningsPartial ? (
+                <SourceNotice
+                  tone="empty"
+                  title="No active notices returned"
+                  detail="The national Met Éireann feed returned no active warning records at its latest check."
+                />
+              ) : null}
+            </>
+          )}
         </div>
       </section>
 
-      {warningsQuery.isLoading ? (
-        <section className="border-b border-border py-5">
-          <output
-            className="block animate-pulse"
-            aria-label="Loading official weather notices"
-          >
-            <span className="block h-5 w-44 rounded bg-muted" />
-            <span className="mt-3 block h-12 rounded bg-muted" />
-          </output>
-        </section>
-      ) : warnings.length ? (
-        <section className="border-b border-border py-7">
-          {warningsPartial ? (
-            <div className="mb-5 flex gap-2 border-l-2 border-warning bg-warning/10 px-4 py-3 text-sm">
-              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-              <p>
-                Partial warning feed:{" "}
-                {warningsQuery.data?.warning ??
-                  "Some source records were excluded."}
-              </p>
-            </div>
-          ) : null}
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-warning">
-            Official notice
-          </p>
-          {warnings.map((warning) => (
-            <article
-              key={warning.id}
-              className="mt-4 border-l-2 border-warning bg-warning/10 px-5 py-4"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-bold uppercase tracking-[0.12em] text-warning">
-                  {warning.level} · expires {formatTime(warning.expiresAt)}
-                </p>
-                <a
-                  href="https://www.met.ie/warnings-today.html"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary"
-                >
-                  Met Éireann
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-              </div>
-              <h2 className="font-editorial mt-2 text-2xl font-medium">
-                {warning.headline}
-              </h2>
-              <p className="mt-3 line-clamp-2 max-w-3xl whitespace-pre-line text-sm leading-6 text-muted-foreground">
-                {warning.description}
-              </p>
-            </article>
-          ))}
-        </section>
-      ) : (
-        <section className="flex items-start gap-3 border-b border-border py-5 text-sm">
-          <ShieldAlert
-            className={`mt-0.5 h-5 w-5 shrink-0 ${
-              warningsUnavailable ? "text-destructive" : "text-primary"
-            }`}
-          />
-          <div>
-            <p className="font-semibold">
-              {warningsUnavailable
-                ? "Official warning feed unavailable"
-                : warningsPartial
-                  ? "Official warning feed partially available"
-                  : "No active notices returned"}
-            </p>
-            <p className="mt-1 leading-6 text-muted-foreground">
-              {warningsUnavailable
-                ? "AgriView cannot confirm warning status. Check Met Éireann directly before weather-sensitive work."
-                : warningsPartial
-                  ? `${warningsQuery.data?.warning ?? "Some source records were excluded."} No active notice is shown from the validated records that remain. Check Met Éireann directly.`
-                  : "The national Met Éireann feed returned no active warning records at its latest check."}
-            </p>
-          </div>
-        </section>
-      )}
-
-      <section className="border-b border-border py-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          Model estimate at the farm pin
-        </p>
-        <h2 className="font-editorial mt-1 text-3xl font-medium">
-          Rain and temperature window
-        </h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          Use the shared daily scale to compare workable periods. High and low
-          temperatures share one range; rain bars share one rainfall scale.
-        </p>
+      <section className="border-b border-rule py-8">
+        <SectionHeading
+          title="Rain and temperature window"
+          lede="Model estimate at the farm pin on one shared daily scale. High and low temperatures share one range; rain bars share one rainfall scale."
+        />
         {forecastQuery.isLoading ? (
           <output
-            className="mt-5 block animate-pulse border-y border-border py-5"
+            className="mt-5 block animate-pulse"
             aria-label="Loading rain and temperature forecast"
           >
-            <span className="block h-8 rounded bg-muted" />
-            <span className="mt-3 block h-[330px] rounded bg-muted" />
+            <span className="block h-[330px] rounded-md bg-muted" />
           </output>
         ) : days.length ? (
           <>
             {forecastPartial ? (
-              <div className="mt-5 flex gap-2 border-l-2 border-warning bg-warning/10 px-4 py-3 text-sm">
-                <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-                <p>
-                  Partial forecast:{" "}
-                  {forecastQuery.data?.warning ??
-                    "Some source rows were excluded."}{" "}
-                  The chart shows only the {days.length} validated days
-                  returned.
-                </p>
-              </div>
+              <SourceNotice
+                tone="partial"
+                className="mt-5"
+                title="Partial forecast: incomplete days were excluded."
+                detail={`${forecastQuery.data?.warning ?? "Some source rows were excluded."} The chart shows only the ${days.length} validated days returned.`}
+                onRetry={() => void forecastQuery.refetch()}
+              />
             ) : null}
             <ForecastComparison days={days} />
           </>
         ) : (
-          <p className="mt-5 border-l-2 border-destructive py-2 pl-4 text-sm text-muted-foreground">
-            {forecastUnavailable
-              ? "The forecast source is unavailable. No values have been substituted."
-              : "The source returned no validated forecast days. No values have been substituted."}
-          </p>
+          <SourceNotice
+            tone={forecastUnavailable ? "unavailable" : "empty"}
+            className="mt-5"
+            title={
+              forecastUnavailable
+                ? "The forecast source is unavailable."
+                : "The source returned no validated forecast days."
+            }
+            detail="No values have been substituted."
+            onRetry={() => void forecastQuery.refetch()}
+          />
         )}
-        <p className="mt-4 text-xs leading-5 text-muted-foreground">
+        <p className="meta mt-4 max-w-[80ch] text-xs">
           Open-Meteo model estimate at {farmLocation.latitude.toFixed(4)},{" "}
           {farmLocation.longitude.toFixed(4)}. Latest AgriView check:{" "}
           {forecastQuery.data?.fetchedAt
@@ -314,107 +327,111 @@ export default function WeatherWaterPage() {
       </section>
 
       <section className="py-8">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Latest raw observations
-            </p>
-            <h2 className="font-editorial mt-1 text-3xl font-medium">
-              Nearby OPW water readings
-            </h2>
-          </div>
-          <a
-            href="https://waterlevel.ie/"
-            target="_blank"
-            rel="noreferrer"
-            className="hidden min-h-11 items-center gap-2 text-sm font-semibold text-primary sm:flex"
-          >
-            waterlevel.ie
-            <ExternalLink className="h-4 w-4" />
-          </a>
-        </div>
-        <div className="mt-4 flex max-w-3xl items-start gap-2 text-sm leading-6 text-muted-foreground">
-          <CircleAlert className="mt-1 h-4 w-4 shrink-0 text-info" />
-          <p>
-            AgriView currently retrieves each sensor’s latest validated
-            observation only. It does not infer a trend, normal range, warning
-            threshold, or flood risk from a single reading.
-          </p>
-        </div>
-        <div className="mt-5 border-y border-border">
+        <SectionHeading
+          title="Nearby OPW water readings"
+          lede="Each sensor’s latest validated observation only. AgriView does not infer a trend, normal range, warning threshold, or flood risk from a single reading."
+          aside={
+            <a
+              href="https://waterlevel.ie/"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-primary hover:underline"
+            >
+              waterlevel.ie
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            </a>
+          }
+        />
+        <div className="mt-5 divide-y divide-rule border-y border-rule">
           {opwQuery.isLoading ? (
             <output
               className="block animate-pulse py-5"
               aria-label="Loading nearby OPW sensor readings"
             >
-              <span className="block h-14 rounded bg-muted" />
-              <span className="mt-2 block h-14 rounded bg-muted" />
+              <span className="block h-14 rounded-md bg-muted" />
+              <span className="mt-2 block h-14 rounded-md bg-muted" />
             </output>
           ) : readings.length ? (
-            readings.slice(0, 6).map((reading, index) => (
-              <article
-                key={`${reading.stationRef}-${reading.sensorRef}`}
-                className="grid min-h-16 items-center gap-3 border-b border-border py-3 last:border-b-0 sm:grid-cols-[32px_minmax(0,1fr)_110px_150px]"
-              >
-                <span
-                  className={cn(
-                    "flex h-8 w-8 items-center justify-center rounded-full",
-                    index === 0
-                      ? "bg-info/15 text-info"
-                      : "bg-muted text-muted-foreground",
-                  )}
+            readings.slice(0, 6).map((reading, index) => {
+              const age = readingAge(reading.observedAt, now);
+              return (
+                <article
+                  key={`${reading.stationRef}-${reading.sensorRef}`}
+                  className="grid min-h-16 items-center gap-x-4 gap-y-2 py-3 sm:grid-cols-[2.25rem_minmax(0,1fr)_120px_190px]"
                 >
-                  <Gauge className="h-4 w-4" />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold">{reading.stationName}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {reading.distanceKm.toFixed(1)} km from farm pin
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">
-                    {reading.parameter}
-                  </p>
-                  <p className="font-semibold">
-                    {reading.value.toFixed(3)} {reading.unit}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">
-                    Latest observation
-                  </p>
-                  <p className="text-xs font-semibold">
-                    {formatTime(reading.observedAt)}
-                  </p>
-                </div>
-              </article>
-            ))
+                  <span
+                    className={cn(
+                      "flex h-9 w-9 items-center justify-center rounded-full",
+                      index === 0
+                        ? "bg-info/15 text-info"
+                        : "bg-muted text-muted-foreground",
+                    )}
+                    aria-hidden="true"
+                  >
+                    <Gauge className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">
+                      {reading.stationName}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {reading.distanceKm.toFixed(1)} km from farm pin
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      {reading.parameter}
+                    </p>
+                    <p className="font-semibold">
+                      {reading.value.toFixed(3)} {reading.unit}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      Latest observation
+                    </p>
+                    <p className="text-xs font-semibold">
+                      {formatTime(reading.observedAt)}
+                      <span
+                        className={cn(
+                          "ml-1.5 font-normal",
+                          age.stale ? "text-check" : "text-muted-foreground",
+                        )}
+                      >
+                        · {age.label}
+                        {age.stale ? ", stale" : ""}
+                      </span>
+                    </p>
+                  </div>
+                </article>
+              );
+            })
           ) : (
-            <div className="py-6 text-sm">
-              <p
-                className={
+            <div className="py-5">
+              <SourceNotice
+                tone={opwUnavailable ? "unavailable" : "empty"}
+                title={
                   opwUnavailable
-                    ? "font-semibold text-destructive"
-                    : "font-semibold"
+                    ? "Current OPW readings are temporarily unavailable."
+                    : "No validated current OPW readings were returned nearby."
                 }
-              >
-                {opwUnavailable
-                  ? "Current OPW readings are temporarily unavailable."
-                  : "No validated current OPW readings were returned nearby."}
-              </p>
-              <p className="mt-1 leading-6 text-muted-foreground">
-                {opwUnavailable
-                  ? "The request failed; AgriView has not presented that as an empty sensor result."
-                  : "This is a valid empty response for the search around your farm pin."}
-              </p>
+                detail={
+                  opwUnavailable
+                    ? "The request failed; AgriView has not presented that as an empty sensor result."
+                    : "This is a valid empty response for the search around your farm pin."
+                }
+                onRetry={
+                  opwUnavailable ? () => void opwQuery.refetch() : undefined
+                }
+              />
             </div>
           )}
         </div>
-        <p className="mt-4 text-xs leading-5 text-muted-foreground">
-          Observations are ordered by distance to the saved pin, not by risk.
-          Open the official station record and local guidance before
-          interpreting a water level.
+        <p className="meta mt-4 max-w-[80ch] text-xs">
+          Observations are ordered by distance to the saved pin, not by risk. A
+          reading older than {STALE_READING_HOURS} hours is marked stale. Open
+          the official station record and local guidance before interpreting a
+          water level.
         </p>
       </section>
     </div>

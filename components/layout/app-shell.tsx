@@ -9,7 +9,7 @@ import {
   LandPlot,
   Leaf,
   Settings2,
-  SlidersHorizontal,
+  Waves,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -47,7 +47,7 @@ const secondaryNav = [
   {
     href: "/environment-compliance",
     label: "Environment",
-    icon: SlidersHorizontal,
+    icon: Waves,
   },
   {
     href: "/methodology",
@@ -56,22 +56,36 @@ const secondaryNav = [
   },
 ] as const;
 
-function BrandMark() {
+export function BrandMark({ className }: { className?: string }) {
+  // Three furrows meeting a field horizon: the notebook's stamp.
   return (
-    <svg viewBox="0 0 32 32" fill="none" className="h-8 w-8" aria-hidden="true">
+    <svg
+      viewBox="0 0 32 32"
+      fill="none"
+      className={cn("h-8 w-8", className)}
+      aria-hidden="true"
+    >
       <path
-        d="M5 24.5C7.5 17 11 11.5 16 7.5c5 4 8.5 9.5 11 17"
+        d="M4 23.5h24"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M8 23.5c1.5-6.5 4.2-11.5 8-15 3.8 3.5 6.5 8.5 8 15"
         stroke="currentColor"
         strokeWidth="1.6"
         strokeLinecap="round"
+        strokeLinejoin="round"
       />
       <path
-        d="M16 7.5v17M9.5 20c1.6-2.8 3.7-5 6.5-6.5M22.5 20c-1.6-2.8-3.7-5-6.5-6.5"
+        d="M16 8.5v15M11.5 18c1.4-2 2.9-3.5 4.5-4.5M20.5 18c-1.4-2-2.9-3.5-4.5-4.5"
         stroke="currentColor"
-        strokeWidth="1.35"
+        strokeWidth="1.3"
         strokeLinecap="round"
-        opacity=".65"
+        opacity=".7"
       />
+      <circle cx="24.5" cy="9.5" r="2.2" fill="currentColor" opacity=".8" />
     </svg>
   );
 }
@@ -95,17 +109,18 @@ function NavLink({
       onClick={() => setActiveTab(href.slice(1))}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex min-h-11 items-center gap-3 rounded-md border border-transparent px-3 text-sm font-medium transition-colors",
+        "flex min-h-10 items-center gap-3 rounded-md border px-3 text-[15px] transition-colors duration-150",
         active
-          ? "border-sidebar-border bg-sidebar-accent text-sidebar-accent-foreground"
-          : "text-sidebar-foreground/72 hover:bg-sidebar-accent/55 hover:text-sidebar-accent-foreground",
+          ? "border-rule bg-sheet font-semibold text-foreground"
+          : "border-transparent font-medium text-rail-foreground/85 hover:bg-background/70 hover:text-foreground",
       )}
     >
       <Icon
         className={cn(
           "h-[18px] w-[18px]",
-          active ? "text-sidebar-primary" : "text-sidebar-foreground/55",
+          active ? "text-primary" : "text-rail-foreground/60",
         )}
+        strokeWidth={active ? 2.25 : 1.9}
       />
       {label}
     </Link>
@@ -146,7 +161,7 @@ function MobileMoreMenu() {
             type="button"
             aria-label="Close more menu"
             tabIndex={-1}
-            className="absolute inset-0 bg-foreground/28"
+            className="absolute inset-0 bg-foreground/30"
             onClick={() => {
               close();
               triggerRef.current?.focus();
@@ -158,13 +173,10 @@ function MobileMoreMenu() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="mobile-more-title"
-            className="absolute inset-x-3 bottom-[calc(4.7rem+env(safe-area-inset-bottom))] rounded-lg border border-border bg-background p-3 shadow-xl"
+            className="sheet dock-enter absolute inset-x-3 bottom-[calc(4.6rem+env(safe-area-inset-bottom))] p-3 shadow-dock"
           >
-            <div className="flex items-center justify-between border-b border-border px-2 pb-2">
-              <p
-                id="mobile-more-title"
-                className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground"
-              >
+            <div className="flex items-center justify-between border-b border-rule px-2 pb-2">
+              <p id="mobile-more-title" className="text-sm font-semibold">
                 More evidence
               </p>
               <button
@@ -188,7 +200,7 @@ function MobileMoreMenu() {
                     href={item.href}
                     onClick={close}
                     aria-current={pathname === item.href ? "page" : undefined}
-                    className="flex min-h-12 items-center gap-3 rounded-md px-3 text-sm font-semibold hover:bg-muted"
+                    className="flex min-h-12 items-center gap-3 rounded-md px-3 text-[15px] font-medium hover:bg-muted"
                   >
                     <Icon className="h-5 w-5 text-primary" />
                     {item.label}
@@ -196,9 +208,9 @@ function MobileMoreMenu() {
                 );
               })}
               <Link
-                href="/my-land#farm-settings"
+                href="/this-week#farm-context"
                 onClick={close}
-                className="flex min-h-12 items-center gap-3 rounded-md px-3 text-sm font-semibold hover:bg-muted"
+                className="flex min-h-12 items-center gap-3 rounded-md px-3 text-[15px] font-medium hover:bg-muted"
               >
                 <Settings2 className="h-5 w-5 text-primary" />
                 Farm settings
@@ -214,7 +226,7 @@ function MobileMoreMenu() {
         aria-controls="mobile-more-menu"
         onClick={() => setOpen((current) => !current)}
         className={cn(
-          "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-[10px] font-semibold",
+          "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-[11px] font-semibold",
           moreIsActive ? "text-primary" : "text-muted-foreground",
         )}
       >
@@ -229,53 +241,56 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   return (
-    <div className="min-h-dvh bg-background md:grid md:grid-cols-[216px_minmax(0,1fr)]">
+    <div className="min-h-dvh bg-background md:grid md:grid-cols-[232px_minmax(0,1fr)]">
       <a
         href="#main-content"
-        className="fixed left-3 top-3 z-50 -translate-y-20 bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-transform focus:translate-y-0"
+        className="fixed left-3 top-3 z-50 -translate-y-20 rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-transform focus:translate-y-0"
       >
         Skip to main content
       </a>
-      <aside className="paper-grain hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:sticky md:top-0 md:flex md:h-dvh md:self-start md:flex-col">
-        <header className="flex h-20 items-center gap-3 border-b border-sidebar-border px-5">
-          <span className="text-sidebar-primary">
-            <BrandMark />
+      <aside
+        data-print="hide"
+        className="paper-grain hidden border-r border-rule bg-rail text-rail-foreground md:sticky md:top-0 md:flex md:h-dvh md:self-start md:flex-col"
+      >
+        <header className="flex items-center gap-3 px-5 pb-5 pt-6">
+          <span className="text-primary">
+            <BrandMark className="h-9 w-9" />
           </span>
           <div>
-            <p className="font-editorial text-xl font-medium leading-none text-sidebar-accent-foreground">
+            <p className="font-editorial text-[1.45rem] font-medium leading-none tracking-[-0.02em] text-foreground">
               AgriView
             </p>
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/45">
+            <p className="mt-1 text-xs text-muted-foreground">
               Weekly farm brief
             </p>
           </div>
         </header>
 
-        <div className="flex flex-1 flex-col px-3 py-5">
-          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/38">
+        <div className="flex flex-1 flex-col px-3">
+          <p className="mb-1.5 px-3 text-[11px] font-semibold text-muted-foreground">
             Farm
           </p>
-          <nav aria-label="Primary navigation" className="grid gap-1">
+          <nav aria-label="Primary navigation" className="grid gap-0.5">
             {primaryNav.map((item) => (
               <NavLink key={item.href} {...item} />
             ))}
           </nav>
 
-          <p className="mb-2 mt-7 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/38">
+          <p className="mb-1.5 mt-7 px-3 text-[11px] font-semibold text-muted-foreground">
             Evidence
           </p>
-          <nav aria-label="Evidence navigation" className="grid gap-1">
+          <nav aria-label="Evidence navigation" className="grid gap-0.5">
             {secondaryNav.map((item) => (
               <NavLink key={item.href} {...item} />
             ))}
           </nav>
         </div>
 
-        <footer className="border-t border-sidebar-border p-3">
-          <div className="flex items-center justify-between px-2">
+        <footer className="border-t border-rule p-3">
+          <div className="flex items-center justify-between gap-2 px-1">
             <Link
-              href="/my-land#farm-settings"
-              className="flex min-h-11 items-center gap-2 text-xs font-medium text-sidebar-foreground/60 hover:text-sidebar-accent-foreground"
+              href="/this-week#farm-context"
+              className="flex min-h-11 items-center gap-2 rounded-md px-2 text-[13px] font-medium text-muted-foreground hover:bg-background/70 hover:text-foreground"
             >
               <Settings2 className="h-4 w-4" />
               Farm settings
@@ -286,20 +301,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="min-w-0">
-        <header className="paper-grain sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur md:hidden">
+        <header
+          data-print="hide"
+          className="paper-grain sticky top-0 z-30 flex h-14 items-center justify-between border-b border-rule bg-background/92 px-4 backdrop-blur md:hidden"
+        >
           <Link href="/this-week" className="flex items-center gap-2">
             <span className="text-primary">
-              <BrandMark />
+              <BrandMark className="h-7 w-7" />
             </span>
-            <span className="font-editorial text-xl font-medium">AgriView</span>
+            <span className="font-editorial text-xl font-medium tracking-[-0.02em]">
+              AgriView
+            </span>
           </Link>
-          <ThemeToggle surface="page" />
+          <ThemeToggle />
         </header>
 
         <main
           id="main-content"
           tabIndex={-1}
-          className="mx-auto min-h-dvh w-full max-w-[1120px] px-4 pb-28 pt-7 sm:px-7 md:px-10 md:pb-16 md:pt-10"
+          className="mx-auto min-h-dvh w-full max-w-[1180px] px-4 pb-28 pt-6 sm:px-7 md:px-10 md:pb-16 md:pt-9"
         >
           {children}
         </main>
@@ -307,7 +327,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <nav
         aria-label="Mobile navigation"
-        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-background/96 px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1 backdrop-blur md:hidden"
+        data-print="hide"
+        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-rule bg-background/95 px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1 backdrop-blur md:hidden"
       >
         {primaryNav.map((item) => {
           const active = pathname === item.href;
@@ -318,11 +339,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               href={item.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-[10px] font-semibold",
+                "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-[11px] font-semibold",
                 active ? "text-primary" : "text-muted-foreground",
               )}
             >
-              <Icon className="h-5 w-5" />
+              <Icon className="h-5 w-5" strokeWidth={active ? 2.25 : 1.9} />
               {item.shortLabel}
             </Link>
           );

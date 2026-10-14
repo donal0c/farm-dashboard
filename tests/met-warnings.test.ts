@@ -67,3 +67,71 @@ describe("Met Éireann warning contract", () => {
     );
   });
 });
+
+describe("Met Éireann warning normalization details", () => {
+  it("reads the published lower-case level and hazard type", () => {
+    const snapshot = normalizeMetWarnings(
+      [
+        {
+          id: 3,
+          level: "yellow",
+          type: "Rain",
+          certainty: "Observed",
+          headline: "Status Yellow - Rain warning for Galway",
+          expiry: "2026-10-15T06:00:00+01:00",
+          regions: ["EI10"],
+        },
+        {
+          id: 4,
+          level: "ORANGE",
+          headline: "Orange something",
+          expiry: "2026-10-15T06:00:00+01:00",
+        },
+      ],
+      new Date("2026-10-14T20:00:00Z"),
+    );
+    assert.equal(snapshot.data?.[0].level, "Orange");
+    assert.equal(snapshot.data?.[1].level, "Yellow");
+    assert.equal(snapshot.data?.[1].type, "Rain");
+    assert.equal(snapshot.data?.[1].certainty, "Observed");
+  });
+
+  it("converts the published HTML description into sentences", () => {
+    const snapshot = normalizeMetWarnings(
+      [
+        {
+          id: 3,
+          level: "yellow",
+          headline: "Status Yellow - Rain warning",
+          description:
+            "<p>Spells of heavy rain.</p><p>Be aware of potential impacts:</p><ul><li>Difficult travelling conditions</li><li>Localised flooding possible</li><li>Poor visibility</li></ul>",
+          expiry: "2026-10-15T06:00:00+01:00",
+        },
+      ],
+      new Date("2026-10-14T20:00:00Z"),
+    );
+    assert.equal(
+      snapshot.data?.[0].description,
+      "Spells of heavy rain. Be aware of potential impacts: Difficult travelling conditions; Localised flooding possible; Poor visibility.",
+    );
+  });
+
+  it("decodes entities in plain descriptions without inventing markup", () => {
+    const snapshot = normalizeMetWarnings(
+      [
+        {
+          id: 3,
+          level: "yellow",
+          headline: "Status Yellow",
+          description: "Gusts of 90 km/h &amp; heavy showers.",
+          expiry: "2026-10-15T06:00:00+01:00",
+        },
+      ],
+      new Date("2026-10-14T20:00:00Z"),
+    );
+    assert.equal(
+      snapshot.data?.[0].description,
+      "Gusts of 90 km/h & heavy showers.",
+    );
+  });
+});

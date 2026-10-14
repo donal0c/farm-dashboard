@@ -45,7 +45,7 @@ export function CoordinateFields({
 
   return (
     <form
-      className="grid gap-3"
+      className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"
       onSubmit={(event) => {
         event.preventDefault();
         const parsed = parseFarmCoordinates(latitude, longitude);
@@ -57,7 +57,7 @@ export function CoordinateFields({
         onApply(parsed.location);
       }}
     >
-      <fieldset className="grid gap-3 sm:grid-cols-2">
+      <fieldset className="contents">
         <legend className="sr-only">Farm point coordinates</legend>
         <label className="grid gap-1.5 text-xs font-semibold text-muted-foreground">
           Latitude
@@ -77,7 +77,7 @@ export function CoordinateFields({
                 : undefined
             }
             aria-describedby={error ? errorId : undefined}
-            className="min-h-11 rounded-md border border-input bg-background px-3 text-base text-foreground"
+            className="control text-base"
           />
         </label>
         <label className="grid gap-1.5 text-xs font-semibold text-muted-foreground">
@@ -98,26 +98,25 @@ export function CoordinateFields({
                 : undefined
             }
             aria-describedby={error ? errorId : undefined}
-            className="min-h-11 rounded-md border border-input bg-background px-3 text-base text-foreground"
+            className="control text-base"
           />
         </label>
       </fieldset>
 
-      {error ? (
-        <p id={errorId} role="alert" className="text-xs text-destructive">
-          {error.message}
-        </p>
-      ) : (
-        <p className="text-xs leading-5 text-muted-foreground">
-          Decimal coordinates provide a keyboard-accessible alternative to
-          clicking the map.
-        </p>
-      )}
-
-      <Button type="submit" variant="outline" className="w-full gap-2">
+      <Button type="submit" variant="outline">
         <Crosshair className="h-4 w-4" aria-hidden="true" />
         {actionLabel}
       </Button>
+
+      {error ? (
+        <p id={errorId} role="alert" className="text-xs text-act sm:col-span-3">
+          {error.message}
+        </p>
+      ) : (
+        <p className="text-xs leading-5 text-muted-foreground sm:col-span-3">
+          Decimal coordinates are the keyboard route to the same point.
+        </p>
+      )}
     </form>
   );
 }

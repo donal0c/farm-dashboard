@@ -1,18 +1,13 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import {
-  ArrowRight,
-  CircleAlert,
-  Droplets,
-  ExternalLink,
-  MapPin,
-  ShieldCheck,
-  Waves,
-} from "lucide-react";
+import { ArrowRight, Droplets, ExternalLink, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
 
+import { NeedsFarm, PageSkeleton } from "@/components/ui/needs-farm";
+import { PageIntro, SectionHeading } from "@/components/ui/page-intro";
+import { SourceNotice } from "@/components/ui/source-notice";
 import { fetchValidatedSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
 import { sourceQueryStaleTime } from "@/lib/client/source-query-policy";
 import { featureCollectionContract } from "@/lib/contracts/geojson";
@@ -51,9 +46,39 @@ function baseStatus(status: string) {
 function statusTone(status: string) {
   const category = baseStatus(status);
   if (category === "High" || category === "Good") return "text-success";
-  if (category === "Moderate") return "text-warning";
-  if (category === "Poor" || category === "Bad") return "text-destructive";
+  if (category === "Moderate") return "text-check";
+  if (category === "Poor" || category === "Bad") return "text-act";
   return "text-muted-foreground";
+}
+
+function statusDot(status: string) {
+  const category = baseStatus(status);
+  if (category === "High" || category === "Good") return "bg-success";
+  if (category === "Moderate") return "bg-check";
+  if (category === "Poor" || category === "Bad") return "bg-act";
+  return "bg-muted-foreground";
+}
+
+function Figure({
+  label,
+  value,
+  note,
+  className,
+}: {
+  label: string;
+  value: React.ReactNode;
+  note: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn("py-6", className)}>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="font-editorial mt-2 text-[2.25rem] font-medium leading-none tracking-[-0.02em]">
+        {value}
+      </p>
+      <p className="mt-2 text-xs text-muted-foreground">{note}</p>
+    </div>
+  );
 }
 
 export default function EnvironmentCompliancePage() {
@@ -146,34 +171,14 @@ export default function EnvironmentCompliancePage() {
   }, [nitratesQuery.data]);
   const nitrateLabels = stockingRates.map(formatNitrateScreeningLabel);
 
-  if (!hasHydrated) {
-    return (
-      <output className="block animate-pulse" aria-label="Loading environment">
-        <span className="block h-12 w-2/3 rounded bg-muted" />
-        <span className="mt-8 block h-72 rounded bg-muted" />
-      </output>
-    );
-  }
+  if (!hasHydrated) return <PageSkeleton label="Loading environment" />;
 
   if (!farmLocation) {
     return (
-      <div className="max-w-2xl border-t border-border pt-8">
-        <MapPin className="h-7 w-7 text-primary" />
-        <h1 className="font-editorial mt-5 text-5xl font-medium">
-          Environmental context needs a farm pin
-        </h1>
-        <p className="mt-4 text-base leading-7 text-muted-foreground">
-          Save a manual point before loading nearby EPA and DAFM screening
-          layers.
-        </p>
-        <Link
-          href="/this-week"
-          className="mt-6 inline-flex min-h-11 items-center gap-2 font-semibold text-primary"
-        >
-          Set up the farm
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-      </div>
+      <NeedsFarm
+        title="Environmental context needs a farm pin"
+        detail="Save a manual point before loading nearby EPA and DAFM screening layers."
+      />
     );
   }
 
@@ -187,100 +192,85 @@ export default function EnvironmentCompliancePage() {
 
   return (
     <div className="min-w-0">
-      <header className="border-b border-border pb-7">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-          Environment · nearby screening evidence
-        </p>
-        <h1 className="font-editorial mt-2 text-5xl font-medium tracking-[-0.035em] sm:text-6xl">
-          Water and nitrates, kept in scope
-        </h1>
-        <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">
-          EPA waterbody classifications and the current DAFM nitrate layer near
-          the saved pin. These are screening signals—not a field assessment,
-          holding determination, or compliance decision.
-        </p>
-      </header>
+      <PageIntro
+        title="Water and nitrates, kept in scope"
+        lede="EPA waterbody classifications and the current DAFM nitrate layer near the saved pin. These are screening signals—not a field assessment, holding determination, or compliance decision."
+      />
 
-      <section className="grid border-b border-border sm:grid-cols-3">
-        <div className="border-b border-border py-6 sm:border-b-0 sm:border-r sm:pr-6">
-          <p className="text-xs text-muted-foreground">
-            Waterbodies returned nearby
-          </p>
-          <p className="font-editorial mt-2 text-4xl font-medium">
-            {wfdQuery.isLoading || wfdUnavailable ? "—" : waterbodies.length}
-          </p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            {wfdUnavailable
+      <section className="grid border-b border-rule sm:grid-cols-3">
+        <Figure
+          label="Waterbodies returned nearby"
+          value={
+            wfdQuery.isLoading || wfdUnavailable ? "—" : waterbodies.length
+          }
+          note={
+            wfdUnavailable
               ? "Source unavailable"
-              : `${formatSourceState(wfdQuery.data?.status)} · nearby search`}
-          </p>
-        </div>
-        <div className="border-b border-border py-6 sm:border-b-0 sm:border-r sm:px-6">
-          <p className="text-xs text-muted-foreground">
-            Below Good / unclassified
-          </p>
-          <p className="font-editorial mt-2 text-4xl font-medium">
-            {wfdQuery.isLoading || wfdUnavailable ? "—" : nonGoodCount}
-          </p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Classification period 2019–2024
-          </p>
-        </div>
-        <div className="py-6 sm:pl-6">
-          <p className="text-xs text-muted-foreground">
-            Nitrate map features nearby
-          </p>
-          <p className="font-editorial mt-2 text-4xl font-medium">
-            {nitratesQuery.isLoading
+              : `${formatSourceState(wfdQuery.data?.status)} · nearby search`
+          }
+          className="border-b border-rule sm:border-b-0 sm:border-r sm:pr-6"
+        />
+        <Figure
+          label="Below Good or unclassified"
+          value={wfdQuery.isLoading || wfdUnavailable ? "—" : nonGoodCount}
+          note="Classification period 2019–2024"
+          className="border-b border-rule sm:border-b-0 sm:border-r sm:px-6"
+        />
+        <Figure
+          label="Nitrate map features nearby"
+          value={
+            nitratesQuery.isLoading || nitratesUnavailable
               ? "—"
-              : nitratesUnavailable
-                ? "—"
-                : (nitratesQuery.data?.data?.features.length ?? 0)}
-          </p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            {nitratesUnavailable
+              : (nitratesQuery.data?.data?.features.length ?? 0)
+          }
+          note={
+            nitratesUnavailable
               ? "Source unavailable"
-              : `${formatSourceState(nitratesQuery.data?.status)} · screening only`}
-          </p>
-        </div>
+              : `${formatSourceState(nitratesQuery.data?.status)} · screening only`
+          }
+          className="sm:pl-6"
+        />
       </section>
 
-      <section className="grid gap-8 border-b border-border py-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <section className="grid gap-8 border-b border-rule py-8 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            EPA classification
-          </p>
-          <h2 className="font-editorial mt-1 text-3xl font-medium">
-            Waterbodies in the screening box
-          </h2>
+          <SectionHeading
+            title="Waterbodies in the screening box"
+            lede="EPA Water Framework Directive classification, most cautionary first."
+          />
           {wfdQuery.isLoading ? (
             <output
               className="mt-5 block animate-pulse"
               aria-label="Loading nearby EPA waterbody classifications"
             >
-              <span className="block h-10 rounded bg-muted" />
+              <span className="block h-10 rounded-sm bg-muted" />
               {Array.from({ length: 5 }, (_, index) => (
                 <span
                   // biome-ignore lint/suspicious/noArrayIndexKey: Static loading placeholders have no identity.
                   key={index}
-                  className="mt-2 block h-16 rounded bg-muted"
+                  className="mt-2 block h-16 rounded-sm bg-muted"
                 />
               ))}
             </output>
           ) : !wfdUnavailable && waterbodies.length ? (
             <>
-              <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 border-y border-border py-3 text-xs">
+              <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-2 border-y border-rule py-3 text-sm">
                 {statusCounts.map(([status, count]) => (
-                  <span key={status} className={statusTone(status)}>
-                    <strong>{count}</strong> {status}
-                  </span>
+                  <li key={status} className="inline-flex items-center gap-2">
+                    <span
+                      className={cn("h-2 w-2 rounded-full", statusDot(status))}
+                      aria-hidden="true"
+                    />
+                    <strong className="font-semibold">{count}</strong>
+                    <span className="text-muted-foreground">{status}</span>
+                  </li>
                 ))}
-              </div>
-              <div className="border-b border-border">
+              </ul>
+              <div className="divide-y divide-rule border-b border-rule">
                 {waterbodies.slice(0, 5).map((item) => (
                   <article
                     key={item.id}
-                    className="grid gap-2 border-b border-border py-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_110px_120px]"
+                    className="grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_120px_120px] sm:items-center"
                   >
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold">
@@ -293,10 +283,17 @@ export default function EnvironmentCompliancePage() {
                     </div>
                     <p
                       className={cn(
-                        "text-sm font-semibold",
+                        "inline-flex items-center gap-2 text-sm font-semibold",
                         statusTone(item.status),
                       )}
                     >
+                      <span
+                        className={cn(
+                          "h-2 w-2 rounded-full",
+                          statusDot(item.status),
+                        )}
+                        aria-hidden="true"
+                      />
                       {item.status}
                     </p>
                     <p className="text-xs text-muted-foreground">
@@ -306,38 +303,33 @@ export default function EnvironmentCompliancePage() {
                 ))}
               </div>
               {waterbodies.length > 5 ? (
-                <p className="mt-3 text-xs text-muted-foreground">
+                <p className="meta mt-3 text-xs">
                   Showing the 5 most cautionary of {waterbodies.length} unique
                   waterbodies returned.
                 </p>
               ) : null}
             </>
           ) : wfdUnavailable ? (
-            <div className="mt-5 flex gap-3 border-l-2 border-destructive py-2 pl-4 text-sm text-muted-foreground">
-              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-              <p>
-                EPA classifications are unavailable. No status or zero value has
-                been substituted.
-              </p>
-            </div>
+            <SourceNotice
+              tone="unavailable"
+              className="mt-5"
+              title="EPA classifications are unavailable."
+              detail="No status or zero value has been substituted."
+              onRetry={() => void wfdQuery.refetch()}
+            />
           ) : (
-            <div className="mt-5 border-l-2 border-border py-2 pl-4 text-sm">
-              <p className="font-semibold">
-                No mapped waterbodies were returned in this screening box.
-              </p>
-              <p className="mt-1 text-muted-foreground">
-                This is a valid empty nearby result, not evidence that no
-                waterbody or environmental constraint exists.
-              </p>
-            </div>
+            <SourceNotice
+              tone="empty"
+              className="mt-5"
+              title="No mapped waterbodies were returned in this screening box."
+              detail="This is a valid empty nearby result, not evidence that no waterbody or environmental constraint exists."
+            />
           )}
         </div>
 
-        <aside className="border-t border-border pt-6 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-          <Waves className="h-5 w-5 text-info" />
-          <h2 className="font-editorial mt-3 text-3xl font-medium">
-            How to use this
-          </h2>
+        <aside className="border-t border-rule pt-6 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+          <Droplets className="h-5 w-5 text-info" aria-hidden="true" />
+          <h3 className="display display-sm mt-3">How to use this</h3>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
             A Moderate, Poor, or Bad classification raises the bar for checking
             nutrient, drainage, bank-side, and buffer decisions. It does not by
@@ -345,30 +337,27 @@ export default function EnvironmentCompliancePage() {
           </p>
           <Link
             href="/my-land"
-            className="mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary"
+            className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary hover:underline"
           >
             Inspect the map layers
-            <ArrowRight className="h-4 w-4" />
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         </aside>
       </section>
 
-      <section className="grid gap-8 border-b border-border py-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <section className="grid gap-8 border-b border-rule py-8 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            DAFM nitrate screening
-          </p>
-          <h2 className="font-editorial mt-1 text-3xl font-medium">
-            Published stocking-rate layer
-          </h2>
+          <SectionHeading
+            title="Published stocking-rate layer"
+            lede="DAFM nitrate screening labels from map features that intersect the search box."
+          />
           {nitratesQuery.isLoading ? (
             <output
               className="mt-5 block animate-pulse"
               aria-label="Loading DAFM nitrate screening labels"
             >
-              <span className="block h-10 w-52 rounded bg-muted" />
-              <span className="mt-3 block h-4 w-full rounded bg-muted" />
-              <span className="mt-2 block h-4 w-4/5 rounded bg-muted" />
+              <span className="block h-10 w-52 rounded-sm bg-muted" />
+              <span className="mt-3 block h-4 w-full rounded-sm bg-muted" />
             </output>
           ) : !nitratesUnavailable && nitratesQuery.data?.data ? (
             <>
@@ -377,7 +366,7 @@ export default function EnvironmentCompliancePage() {
                   nitrateLabels.map((label) => (
                     <div
                       key={label.raw}
-                      className="border border-warning/35 bg-warning/10 px-3 py-2 text-sm font-semibold"
+                      className="panel px-4 py-3 text-sm font-semibold"
                     >
                       <p>{label.rate}</p>
                       <p className="mt-1 text-xs font-normal text-muted-foreground">
@@ -394,37 +383,46 @@ export default function EnvironmentCompliancePage() {
                   </p>
                 )}
               </div>
-              <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground">
+              <p className="mt-4 max-w-[64ch] text-sm leading-6 text-muted-foreground">
                 These are labels from intersecting map features, not a holding
                 calculation. Confirm the current National Action Programme,
                 derogation terms, stocking records, and adviser guidance.
               </p>
             </>
           ) : (
-            <p className="mt-5 border-l-2 border-destructive py-2 pl-4 text-sm text-muted-foreground">
-              The DAFM screening layer is unavailable. No result has been
-              inferred.
-            </p>
+            <SourceNotice
+              tone="unavailable"
+              className="mt-5"
+              title="The DAFM screening layer is unavailable."
+              detail="No result has been inferred."
+              onRetry={() => void nitratesQuery.refetch()}
+            />
           )}
         </div>
-        <aside className="border-t border-border pt-6 text-sm lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-          <p className="text-xs text-muted-foreground">Current source</p>
-          <p className="mt-1 font-semibold">
-            {nitratesQuery.data?.source.label ?? "DAFM nitrates map"}
-          </p>
-          <p className="mt-4 text-xs text-muted-foreground">Checked</p>
-          <p className="mt-1 font-semibold">
-            {formatCheckedAt(nitratesQuery.data?.fetchedAt)}
-          </p>
+        <aside className="border-t border-rule pt-6 text-sm lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+          <dl className="grid gap-4">
+            <div>
+              <dt className="text-xs text-muted-foreground">Current source</dt>
+              <dd className="mt-1 font-semibold">
+                {nitratesQuery.data?.source.label ?? "DAFM nitrates map"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Checked</dt>
+              <dd className="mt-1 font-semibold">
+                {formatCheckedAt(nitratesQuery.data?.fetchedAt)}
+              </dd>
+            </div>
+          </dl>
           {nitratesQuery.data?.source.url ? (
             <a
               href={nitratesQuery.data.source.url}
               target="_blank"
               rel="noreferrer"
-              className="mt-5 inline-flex min-h-11 items-center gap-2 font-semibold text-primary"
+              className="mt-4 inline-flex min-h-11 items-center gap-2 font-semibold text-primary hover:underline"
             >
               Official map source
-              <ExternalLink className="h-4 w-4" />
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
             </a>
           ) : null}
         </aside>
@@ -432,7 +430,10 @@ export default function EnvironmentCompliancePage() {
 
       <section className="grid gap-5 py-7 text-sm leading-6 text-muted-foreground sm:grid-cols-2">
         <div className="flex gap-3">
-          <Droplets className="mt-0.5 h-5 w-5 shrink-0 text-info" />
+          <Droplets
+            className="mt-0.5 h-5 w-5 shrink-0 text-info"
+            aria-hidden="true"
+          />
           <p>
             EPA WFD classifications cover the 2019–2024 assessment period and
             describe mapped waterbodies returned near the pin, not the farm.
@@ -440,7 +441,10 @@ export default function EnvironmentCompliancePage() {
           </p>
         </div>
         <div className="flex gap-3">
-          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <ShieldCheck
+            className="mt-0.5 h-5 w-5 shrink-0 text-primary"
+            aria-hidden="true"
+          />
           <p>
             AgriView does not show biodiversity records until a maintained,
             redistributable source and a farmer decision use-case are both

@@ -2,10 +2,22 @@ import { z } from "zod";
 
 import type { SourceSnapshot } from "../contracts/source-snapshot.ts";
 
+export type MetWarningLevel =
+  | "Yellow"
+  | "Orange"
+  | "Red"
+  | "Advisory"
+  | "Unknown";
+
 export type MetWarning = {
   id: string;
-  level: "Yellow" | "Orange" | "Red" | "Advisory" | "Unknown";
+  level: MetWarningLevel;
+  /** Hazard type as published, e.g. "Rain", "Wind". Null when not published. */
+  type: string | null;
+  /** CAP certainty as published, e.g. "Observed", "Likely". Null when absent. */
+  certainty: string | null;
   headline: string;
+  /** Plain-text description; upstream HTML has been converted to sentences. */
   description: string;
   issuedAt: string;
   startsAt: string;
@@ -13,14 +25,20 @@ export type MetWarning = {
   regions: string[];
 };
 
+const timestamp = z
+  .string()
+  .refine((value) => Number.isFinite(Date.parse(value)), "Invalid timestamp.");
+
 export const metWarningSchema = z.object({
   id: z.string().min(1),
   level: z.enum(["Yellow", "Orange", "Red", "Advisory", "Unknown"]),
+  type: z.string().nullable().default(null),
+  certainty: z.string().nullable().default(null),
   headline: z.string().min(1),
   description: z.string(),
-  issuedAt: z.string().refine((value) => Number.isFinite(Date.parse(value))),
-  startsAt: z.string().refine((value) => Number.isFinite(Date.parse(value))),
-  expiresAt: z.string().refine((value) => Number.isFinite(Date.parse(value))),
+  issuedAt: timestamp,
+  startsAt: timestamp,
+  expiresAt: timestamp,
   regions: z.array(z.string()),
 });
 
@@ -32,20 +50,13 @@ export const rawMetWarningsSchema = z.array(
       id: z.union([z.string(), z.number()]).optional(),
       capId: z.string().optional(),
       level: z.string().optional(),
+      type: z.string().optional(),
+      certainty: z.string().optional(),
       headline: z.string().optional(),
       description: z.string().optional(),
-      issued: z
-        .string()
-        .refine((value) => Number.isFinite(Date.parse(value)))
-        .optional(),
-      onset: z
-        .string()
-        .refine((value) => Number.isFinite(Date.parse(value)))
-        .optional(),
-      expiry: z
-        .string()
-        .refine((value) => Number.isFinite(Date.parse(value)))
-        .optional(),
+      issued: timestamp.optional(),
+      onset: timestamp.optional(),
+      expiry: timestamp.optional(),
       regions: z.array(z.string()).optional(),
     })
     .passthrough(),
@@ -59,7 +70,7 @@ export const MET_WARNINGS_SOURCE = {
   url: "https://www.met.ie/warnings-today.html",
 };
 
-const severityRank: Record<MetWarning["level"], number> = {
+const severityRank: Record<MetWarningLevel, number> = {
   Red: 0,
   Orange: 1,
   Yellow: 2,
@@ -67,10 +78,78 @@ const severityRank: Record<MetWarning["level"], number> = {
   Unknown: 4,
 };
 
-function warningLevel(level: string | undefined): MetWarning["level"] {
-  return ["Yellow", "Orange", "Red", "Advisory"].includes(level ?? "")
-    ? (level as MetWarning["level"])
-    : "Unknown";
+const knownLevels: MetWarningLevel[] = ["Yellow", "Orange", "Red", "Advisory"];
+
+/**
+ * Met Éireann publishes the level in lower case ("yellow"). Match without
+ * regard to case so severity promotion rules can actually run.
+ */
+export function warningLevel(level: string | undefined): MetWarningLevel {
+  const normalized = (level ?? "").trim().toLowerCase();
+  return (
+    knownLevels.find((known) => known.toLowerCase() === normalized) ?? "Unknown"
+  );
+}
+
+const entities: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+};
+
+function decodeEntities(value: string) {
+  return value.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (match, entity: string) => {
+    if (entity.startsWith("#x") || entity.startsWith("#X")) {
+      return String.fromCodePoint(Number.parseInt(entity.slice(2), 16));
+    }
+    if (entity.startsWith("#")) {
+      return String.fromCodePoint(Number.parseInt(entity.slice(1), 10));
+    }
+    return entities[entity.toLowerCase()] ?? match;
+  });
+}
+
+function ensureTerminal(sentence: string) {
+  return /[.!?:;]$/.test(sentence) ? sentence : `${sentence}.`;
+}
+
+/**
+ * Convert the published HTML description into readable plain text.
+ * Paragraphs become sentences; list items are joined with semicolons so a
+ * warning reads as prose rather than markup.
+ */
+export function warningDescriptionToText(html: string) {
+  if (!/<[a-z!/]/i.test(html)) {
+    return decodeEntities(html).replace(/\s+/g, " ").trim();
+  }
+  const lines = html
+    .replace(/<\s*li[^>]*>/gi, "\n\u0000")
+    .replace(/<\s*(\/li|\/p|\/ul|\/ol|\/div|\/h\d|br\s*\/?)[^>]*>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .split("\n")
+    .map((line) => decodeEntities(line).replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+
+  const output: string[] = [];
+  let bullets: string[] = [];
+  const flushBullets = () => {
+    if (!bullets.length) return;
+    output.push(ensureTerminal(bullets.join("; ")));
+    bullets = [];
+  };
+  for (const line of lines) {
+    if (line.startsWith("\u0000")) {
+      bullets.push(line.slice(1).trim());
+      continue;
+    }
+    flushBullets();
+    output.push(ensureTerminal(line));
+  }
+  flushBullets();
+  return output.join(" ");
 }
 
 export function normalizeMetWarnings(
@@ -91,8 +170,10 @@ export function normalizeMetWarnings(
     .map((warning) => ({
       id: String(warning.capId ?? warning.id ?? warning.headline),
       level: warningLevel(warning.level),
+      type: warning.type?.trim() || null,
+      certainty: warning.certainty?.trim() || null,
       headline: String(warning.headline),
-      description: String(warning.description ?? "").trim(),
+      description: warningDescriptionToText(String(warning.description ?? "")),
       issuedAt: String(warning.issued ?? fetchedAt.toISOString()),
       startsAt: String(
         warning.onset ?? warning.issued ?? fetchedAt.toISOString(),

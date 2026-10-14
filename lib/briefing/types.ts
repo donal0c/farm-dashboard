@@ -6,6 +6,8 @@ export type BriefEvidence = {
   sourceLabel: string;
   sourceUrl: string;
   observedAt: string | null;
+  /** What the observedAt time means for this source, e.g. "Checked". */
+  observedLabel?: "Observed" | "Checked" | "Issued" | "Verified";
   scope: string;
   confidence: string;
   explanation: string;

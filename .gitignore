@@ -45,3 +45,6 @@ next-env.d.ts
 
 # local automation artifacts
 .playwright-cli/
+
+# Impeccable review artifacts
+.impeccable/

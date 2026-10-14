@@ -10,7 +10,9 @@ import {
 } from "lucide-react";
 import { useMemo } from "react";
 
-import { ThemedChart } from "@/components/charts/themed-chart";
+import { ThemedChart, useChartTokens } from "@/components/charts/themed-chart";
+import { Fact, PageIntro, SectionHeading } from "@/components/ui/page-intro";
+import { SourceNotice } from "@/components/ui/source-notice";
 import { fetchValidatedSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
 import { sourceQueryStaleTime } from "@/lib/client/source-query-policy";
 import {
@@ -54,8 +56,33 @@ async function fetchCso(dataset: string) {
   );
 }
 
+function Change({ value }: { value: number | null }) {
+  if (value === null) return null;
+  const flat = Math.abs(value) < 0.05;
+  const Icon = flat ? Minus : value > 0 ? ArrowUpRight : ArrowDownRight;
+  return (
+    <p
+      className={cn(
+        "mb-1.5 flex items-center gap-1 text-sm font-semibold",
+        flat
+          ? "text-muted-foreground"
+          : value > 0
+            ? "text-success"
+            : "text-act",
+      )}
+    >
+      <Icon className="h-4 w-4" aria-hidden="true" />
+      {Math.abs(value).toFixed(1)}%
+      <span className="sr-only">
+        {flat ? "unchanged" : value > 0 ? "up" : "down"} on the prior period
+      </span>
+    </p>
+  );
+}
+
 export default function MarketsIncomePage() {
   const enterprise = useUiStore((state) => state.enterprise);
+  const tokens = useChartTokens();
   const outputQuery = useQuery({
     queryKey: ["cso", "AEA01"],
     queryFn: () => fetchCso("AEA01"),
@@ -108,113 +135,84 @@ export default function MarketsIncomePage() {
   const priceUnavailable =
     priceQuery.isError || priceQuery.data?.status === "unavailable";
 
-  const changeIcon = (change: number | null) => {
-    if (change === null || Math.abs(change) < 0.05) return Minus;
-    return change > 0 ? ArrowUpRight : ArrowDownRight;
+  const axisStyle = {
+    axisLabel: { color: tokens.muted, fontFamily: tokens.fontFamily },
+    splitLine: { lineStyle: { color: tokens.rule, type: "dashed" as const } },
+    axisLine: { show: false },
+    axisTick: { show: false },
   };
 
   return (
     <div className="min-w-0">
-      <header className="border-b border-border pb-7">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-          Markets · {enterpriseLabels[enterprise]} context
-        </p>
-        <h1 className="font-editorial mt-2 text-5xl font-medium tracking-[-0.035em] sm:text-6xl">
-          National signals, kept in scope
-        </h1>
-        <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">
-          CSO output values and price indices can provide commercial context.
-          They are national, lagged statistics—not your sale price, margin, or a
-          recommendation to buy or sell.
-        </p>
-      </header>
+      <PageIntro
+        title="National signals, kept in scope"
+        lede="CSO output values and price indices give commercial context. They are national, lagged statistics, not your sale price, margin, or a recommendation to buy or sell."
+      />
 
-      <section className="grid gap-3 border-b border-border py-4 text-xs sm:grid-cols-3">
-        <div>
-          <p className="text-muted-foreground">Geography</p>
-          <p className="mt-1 font-semibold">Ireland · national series</p>
-        </div>
-        <div>
-          <p className="text-muted-foreground">Publication cadence</p>
-          <p className="mt-1 font-semibold">
-            Annual output · monthly price index
-          </p>
-        </div>
-        <div>
-          <p className="text-muted-foreground">Source state</p>
-          <p className="mt-1 font-semibold">
-            {outputQuery.isLoading
-              ? "Checking CSO"
-              : outputUnavailable
-                ? "Output series unavailable"
-                : `${formatSourceState(outputQuery.data?.status)} · checked ${outputQuery.data?.fetchedAt ? new Intl.DateTimeFormat("en-IE", { dateStyle: "medium" }).format(new Date(outputQuery.data.fetchedAt)) : "unknown"}`}
-          </p>
-        </div>
-      </section>
+      <dl className="grid gap-4 border-b border-rule py-5 sm:grid-cols-3">
+        <Fact label="Geography">Ireland · national series</Fact>
+        <Fact label="Publication cadence">
+          Annual output · monthly price index
+        </Fact>
+        <Fact label="Source state">
+          {outputQuery.isLoading
+            ? "Checking CSO"
+            : outputUnavailable
+              ? "Output series unavailable"
+              : `${formatSourceState(outputQuery.data?.status)} · checked ${outputQuery.data?.fetchedAt ? new Intl.DateTimeFormat("en-IE", { dateStyle: "medium" }).format(new Date(outputQuery.data.fetchedAt)) : "unknown"}`}
+        </Fact>
+      </dl>
 
-      <section className="grid border-b border-border md:grid-cols-2">
-        <article className="border-b border-border py-7 md:border-b-0 md:border-r md:pr-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+      <section className="grid border-b border-rule md:grid-cols-2">
+        <article className="border-b border-rule py-7 md:border-b-0 md:border-r md:pr-8">
+          <h2 className="text-sm font-semibold text-muted-foreground">
             Latest annual output
-          </p>
+          </h2>
           {latestOutput ? (
             <>
               <div className="mt-3 flex items-end gap-3">
-                <p className="font-editorial text-5xl font-medium">
+                <p className="font-editorial text-[3rem] font-medium leading-none tracking-[-0.025em]">
                   {formatEuroMillions(latestOutput.value)}
                 </p>
-                {outputChange !== null ? (
-                  <p
-                    className={cn(
-                      "mb-1 flex items-center gap-1 text-sm font-semibold",
-                      outputChange >= 0 ? "text-success" : "text-destructive",
-                    )}
-                  >
-                    {(() => {
-                      const Icon = changeIcon(outputChange);
-                      return <Icon className="h-4 w-4" />;
-                    })()}
-                    {Math.abs(outputChange).toFixed(1)}%
-                  </p>
-                ) : null}
+                <Change value={outputChange} />
               </div>
-              <p className="mt-2 text-sm text-muted-foreground">
+              <p className="mt-3 text-sm text-muted-foreground">
                 {outputLabel[enterprise]} · {latestOutput.year} · Euro million
               </p>
             </>
+          ) : outputQuery.isLoading ? (
+            <output
+              className="mt-4 block animate-pulse"
+              aria-label="Loading annual CSO output"
+            >
+              <span className="block h-12 w-44 rounded-sm bg-muted" />
+              <span className="mt-3 block h-4 w-64 max-w-full rounded-sm bg-muted" />
+            </output>
           ) : (
-            <div className="mt-4 text-sm">
-              {outputQuery.isLoading ? (
-                <output
-                  className="block animate-pulse"
-                  aria-label="Loading annual CSO output"
-                >
-                  <span className="block h-12 w-44 rounded bg-muted" />
-                  <span className="mt-3 block h-4 w-64 max-w-full rounded bg-muted" />
-                </output>
-              ) : outputUnavailable ? (
-                <>
-                  <p className="font-semibold text-destructive">
-                    Annual output is temporarily unavailable.
-                  </p>
-                  <p className="mt-1 leading-6 text-muted-foreground">
-                    No national value or change has been substituted.
-                  </p>
-                </>
-              ) : (
-                <p className="text-muted-foreground">
-                  The current CSO release contains no matching annual series for
-                  this enterprise.
-                </p>
-              )}
-            </div>
+            <SourceNotice
+              tone={outputUnavailable ? "unavailable" : "empty"}
+              className="mt-4"
+              title={
+                outputUnavailable
+                  ? "Annual output is temporarily unavailable."
+                  : "No matching annual series for this enterprise."
+              }
+              detail={
+                outputUnavailable
+                  ? "No national value or change has been substituted."
+                  : "The current CSO release contains no matching annual series."
+              }
+              onRetry={
+                outputUnavailable ? () => void outputQuery.refetch() : undefined
+              }
+            />
           )}
         </article>
 
         <article className="py-7 md:pl-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          <h2 className="text-sm font-semibold text-muted-foreground">
             Latest output price index
-          </p>
+          </h2>
           {enterprise === "mixed" ? (
             <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">
               A mixed enterprise has no honest single commodity index. Choose a
@@ -224,89 +222,72 @@ export default function MarketsIncomePage() {
           ) : latestPrice ? (
             <>
               <div className="mt-3 flex items-end gap-3">
-                <p className="font-editorial text-5xl font-medium">
+                <p className="font-editorial text-[3rem] font-medium leading-none tracking-[-0.025em]">
                   {latestPrice.value.toFixed(1)}
                 </p>
-                {priceChange !== null ? (
-                  <p
-                    className={cn(
-                      "mb-1 flex items-center gap-1 text-sm font-semibold",
-                      priceChange >= 0 ? "text-success" : "text-destructive",
-                    )}
-                  >
-                    {(() => {
-                      const Icon = changeIcon(priceChange);
-                      return <Icon className="h-4 w-4" />;
-                    })()}
-                    {Math.abs(priceChange).toFixed(1)}%
-                  </p>
-                ) : null}
+                <Change value={priceChange} />
               </div>
-              <p className="mt-2 text-sm text-muted-foreground">
+              <p className="mt-3 text-sm text-muted-foreground">
                 CSO monthly output price index · {latestPrice.label}
               </p>
             </>
+          ) : priceQuery.isLoading ? (
+            <output
+              className="mt-4 block animate-pulse"
+              aria-label="Loading monthly CSO price index"
+            >
+              <span className="block h-12 w-36 rounded-sm bg-muted" />
+              <span className="mt-3 block h-4 w-56 max-w-full rounded-sm bg-muted" />
+            </output>
           ) : (
-            <div className="mt-4 text-sm">
-              {priceQuery.isLoading ? (
-                <output
-                  className="block animate-pulse"
-                  aria-label="Loading monthly CSO price index"
-                >
-                  <span className="block h-12 w-36 rounded bg-muted" />
-                  <span className="mt-3 block h-4 w-56 max-w-full rounded bg-muted" />
-                </output>
-              ) : priceUnavailable ? (
-                <>
-                  <p className="font-semibold text-destructive">
-                    Monthly price index is temporarily unavailable.
-                  </p>
-                  <p className="mt-1 leading-6 text-muted-foreground">
-                    No index or direction has been inferred.
-                  </p>
-                </>
-              ) : (
-                <p className="text-muted-foreground">
-                  The current CSO release contains no matching monthly series.
-                </p>
-              )}
-            </div>
+            <SourceNotice
+              tone={priceUnavailable ? "unavailable" : "empty"}
+              className="mt-4"
+              title={
+                priceUnavailable
+                  ? "Monthly price index is temporarily unavailable."
+                  : "No matching monthly series was published."
+              }
+              detail={
+                priceUnavailable
+                  ? "No index or direction has been inferred."
+                  : "The current CSO release contains no matching monthly series."
+              }
+              onRetry={
+                priceUnavailable ? () => void priceQuery.refetch() : undefined
+              }
+            />
           )}
         </article>
       </section>
 
-      <section className="border-b border-border py-8">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Direction, not prediction
-            </p>
-            <h2 className="font-editorial mt-1 text-3xl font-medium">
-              {outputLabel[enterprise]}
-            </h2>
-          </div>
-          <a
-            href="https://www.cso.ie/en/statistics/agriculture/"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary"
-          >
-            CSO agriculture
-            <ExternalLink className="h-4 w-4" />
-          </a>
-        </div>
+      <section className="border-b border-rule py-8">
+        <SectionHeading
+          title={outputLabel[enterprise]}
+          lede="Direction, not prediction. Annual values in Euro million from CSO AEA01."
+          aside={
+            <a
+              href="https://www.cso.ie/en/statistics/agriculture/"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-primary hover:underline"
+            >
+              CSO agriculture
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            </a>
+          }
+        />
         {outputQuery.isLoading ? (
           <output
             className="mt-6 block animate-pulse"
             aria-label="Loading annual output chart"
           >
-            <span className="block h-[340px] rounded bg-muted" />
-            <span className="mt-4 block h-16 rounded bg-muted" />
+            <span className="block h-[320px] rounded-md bg-muted" />
           </output>
         ) : output.length ? (
           <div className="mt-6">
             <ThemedChart
-              style={{ height: 340 }}
+              style={{ height: 320 }}
               option={{
                 animation: false,
                 aria: {
@@ -318,16 +299,19 @@ export default function MarketsIncomePage() {
                   valueFormatter: (value: unknown) =>
                     formatEuroMillions(Number(value)),
                 },
-                grid: { left: 62, right: 16, top: 20, bottom: 42 },
+                grid: { left: 64, right: 16, top: 20, bottom: 40 },
                 xAxis: {
                   type: "category",
                   data: output.map((item) => String(item.year)),
+                  ...axisStyle,
                 },
                 yAxis: {
                   type: "value",
                   name: "€ million",
                   nameLocation: "middle",
-                  nameGap: 48,
+                  nameGap: 50,
+                  nameTextStyle: { color: tokens.muted },
+                  ...axisStyle,
                 },
                 series: [
                   {
@@ -336,20 +320,19 @@ export default function MarketsIncomePage() {
                     smooth: false,
                     symbol: "circle",
                     symbolSize: 7,
-                    lineStyle: { color: "#3a8a5c", width: 2.5 },
-                    itemStyle: { color: "#3a8a5c" },
-                    areaStyle: { color: "#3a8a5c", opacity: 0.08 },
+                    lineStyle: { width: 2.25 },
+                    areaStyle: { opacity: 0.08 },
                     data: output.map((item) => item.value),
                   },
                 ],
               }}
             />
             <dl
-              className="mt-4 grid grid-cols-1 gap-px overflow-hidden border border-border bg-border sm:grid-cols-[repeat(auto-fit,minmax(8rem,1fr))]"
+              className="mt-4 grid grid-cols-1 gap-px overflow-hidden rounded-md border border-rule bg-rule sm:grid-cols-[repeat(auto-fit,minmax(8rem,1fr))]"
               aria-label="Latest annual output values"
             >
               {output.slice(-5).map((item) => (
-                <div key={item.year} className="bg-background px-3 py-3">
+                <div key={item.year} className="bg-sheet px-3 py-3">
                   <dt className="text-xs text-muted-foreground">{item.year}</dt>
                   <dd className="mt-1 text-sm font-semibold">
                     {formatEuroMillions(item.value)}
@@ -359,45 +342,39 @@ export default function MarketsIncomePage() {
             </dl>
           </div>
         ) : (
-          <div className="mt-6 border-l-2 border-border py-2 pl-4 text-sm">
-            <p
-              className={
-                outputUnavailable
-                  ? "font-semibold text-destructive"
-                  : "font-semibold"
-              }
-            >
-              {outputUnavailable
+          <SourceNotice
+            tone={outputUnavailable ? "unavailable" : "empty"}
+            className="mt-6"
+            title={
+              outputUnavailable
                 ? "The annual output source is unavailable."
-                : "No matching annual output series was published."}
-            </p>
-            <p className="mt-1 text-muted-foreground">
-              No chart or zero value has been substituted.
-            </p>
-          </div>
+                : "No matching annual output series was published."
+            }
+            detail="No chart or zero value has been substituted."
+            onRetry={
+              outputUnavailable ? () => void outputQuery.refetch() : undefined
+            }
+          />
         )}
       </section>
 
       {enterprise !== "mixed" ? (
-        <section className="border-b border-border py-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Recent index
-          </p>
-          <h2 className="font-editorial mt-1 text-3xl font-medium">
-            Monthly output price direction
-          </h2>
+        <section className="border-b border-rule py-8">
+          <SectionHeading
+            title="Monthly output price direction"
+            lede={`${enterpriseLabels[enterprise]} output price index from CSO AHM05, since January 2023.`}
+          />
           {priceQuery.isLoading ? (
             <output
               className="mt-6 block animate-pulse"
               aria-label="Loading monthly price-index chart"
             >
-              <span className="block h-[300px] rounded bg-muted" />
-              <span className="mt-4 block h-16 rounded bg-muted" />
+              <span className="block h-[280px] rounded-md bg-muted" />
             </output>
           ) : price.length ? (
             <div className="mt-6">
               <ThemedChart
-                style={{ height: 300 }}
+                style={{ height: 280 }}
                 option={{
                   animation: false,
                   aria: {
@@ -405,13 +382,19 @@ export default function MarketsIncomePage() {
                     description: `${enterpriseLabels[enterprise]} monthly output price index.`,
                   },
                   tooltip: { trigger: "axis" },
-                  grid: { left: 54, right: 16, top: 18, bottom: 60 },
+                  grid: { left: 54, right: 16, top: 32, bottom: 56 },
                   xAxis: {
                     type: "category",
                     data: price.map((item) => item.label),
-                    axisLabel: { hideOverlap: true },
+                    ...axisStyle,
+                    axisLabel: { ...axisStyle.axisLabel, hideOverlap: true },
                   },
-                  yAxis: { type: "value", name: "Index" },
+                  yAxis: {
+                    type: "value",
+                    name: "Index",
+                    nameTextStyle: { color: tokens.muted },
+                    ...axisStyle,
+                  },
                   dataZoom: [{ type: "inside" }],
                   series: [
                     {
@@ -419,20 +402,19 @@ export default function MarketsIncomePage() {
                       type: "line",
                       smooth: false,
                       showSymbol: false,
-                      lineStyle: { color: "#3a8a5c", width: 2.5 },
-                      itemStyle: { color: "#3a8a5c" },
-                      areaStyle: { color: "#3a8a5c", opacity: 0.08 },
+                      lineStyle: { width: 2.25 },
+                      areaStyle: { opacity: 0.08 },
                       data: price.map((item) => item.value),
                     },
                   ],
                 }}
               />
               <dl
-                className="mt-4 grid grid-cols-1 gap-px overflow-hidden border border-border bg-border sm:grid-cols-[repeat(auto-fit,minmax(8rem,1fr))]"
+                className="mt-4 grid grid-cols-1 gap-px overflow-hidden rounded-md border border-rule bg-rule sm:grid-cols-[repeat(auto-fit,minmax(8rem,1fr))]"
                 aria-label="Four latest monthly price-index values"
               >
                 {price.slice(-4).map((item) => (
-                  <div key={item.label} className="bg-background px-3 py-3">
+                  <div key={item.label} className="bg-sheet px-3 py-3">
                     <dt className="truncate text-xs text-muted-foreground">
                       {item.label}
                     </dt>
@@ -444,29 +426,29 @@ export default function MarketsIncomePage() {
               </dl>
             </div>
           ) : (
-            <div className="mt-6 border-l-2 border-border py-2 pl-4 text-sm">
-              <p
-                className={
-                  priceUnavailable
-                    ? "font-semibold text-destructive"
-                    : "font-semibold"
-                }
-              >
-                {priceUnavailable
+            <SourceNotice
+              tone={priceUnavailable ? "unavailable" : "empty"}
+              className="mt-6"
+              title={
+                priceUnavailable
                   ? "The monthly price-index source is unavailable."
-                  : "No matching monthly price-index series was published."}
-              </p>
-              <p className="mt-1 text-muted-foreground">
-                No chart or direction has been inferred.
-              </p>
-            </div>
+                  : "No matching monthly price-index series was published."
+              }
+              detail="No chart or direction has been inferred."
+              onRetry={
+                priceUnavailable ? () => void priceQuery.refetch() : undefined
+              }
+            />
           )}
         </section>
       ) : null}
 
-      <footer className="flex gap-4 py-7 text-sm leading-6 text-muted-foreground">
-        <Scale className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-        <p>
+      <footer className="flex gap-3 py-7 text-sm leading-6 text-muted-foreground">
+        <Scale
+          className="mt-0.5 h-5 w-5 shrink-0 text-primary"
+          aria-hidden="true"
+        />
+        <p className="max-w-[70ch]">
           Values retain the CSO unit. “Euro Million” is rendered as millions,
           with compact billions where appropriate. The percentage is a change in
           the national series, not a farm return. Zero is shown only when

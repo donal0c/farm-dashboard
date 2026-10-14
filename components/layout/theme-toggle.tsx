@@ -4,21 +4,11 @@ import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
-import { cn } from "@/lib/utils";
-
-type ThemeToggleProps = {
-  surface?: "page" | "sidebar";
-};
-
-export function ThemeToggle({ surface = "sidebar" }: ThemeToggleProps) {
+export function ThemeToggle() {
   const { setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const className = cn(
-    "flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-    surface === "sidebar"
-      ? "w-full text-sidebar-foreground/60 hover:bg-sidebar-accent/60 hover:text-sidebar-primary-foreground"
-      : "w-auto text-muted-foreground hover:bg-muted hover:text-foreground",
-  );
+  const className =
+    "grid h-11 w-11 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground";
 
   useEffect(() => {
     setMounted(true);
@@ -27,10 +17,7 @@ export function ThemeToggle({ surface = "sidebar" }: ThemeToggleProps) {
   if (!mounted) {
     return (
       <button type="button" className={className} aria-label="Theme">
-        <Sun className="h-4 w-4" />
-        <span className={surface === "page" ? "sr-only" : undefined}>
-          Theme
-        </span>
+        <Sun className="h-[18px] w-[18px]" />
       </button>
     );
   }
@@ -40,14 +27,16 @@ export function ThemeToggle({ surface = "sidebar" }: ThemeToggleProps) {
   return (
     <button
       type="button"
-      aria-label={isDark ? "Light mode" : "Dark mode"}
+      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      title={isDark ? "Light mode" : "Dark mode"}
       onClick={() => setTheme(isDark ? "light" : "dark")}
       className={className}
     >
-      {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-      <span className={surface === "page" ? "sr-only" : undefined}>
-        {isDark ? "Light mode" : "Dark mode"}
-      </span>
+      {isDark ? (
+        <Sun className="h-[18px] w-[18px]" />
+      ) : (
+        <Moon className="h-[18px] w-[18px]" />
+      )}
     </button>
   );
 }

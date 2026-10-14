@@ -11,13 +11,18 @@ permission, or legal compliance.
 
 ## Product workflow
 
-1. Choose an approximate routing area and place a manual farm pin.
-2. Select the main enterprise and the week’s focus.
-3. Start on **This week**: one lead priority and two supporting checks.
-4. Open the evidence disclosure to inspect scope, confidence, observation time,
-   source, and the deterministic rule.
+1. Choose an approximate routing area, then place a manual farm pin on the
+   map, from your device location, or by coordinates.
+2. Select the main enterprise and the week’s focus; both can be changed in
+   place on **This week**.
+3. Start on **This week**: one lead priority, up to two supporting items, and
+   a decision boundary. The seven-day ledger highlights the days the lead
+   decision refers to.
+4. Open the evidence disclosure to inspect scope, confidence, time, source,
+   and the deterministic rule.
 5. Drill into **Land**, **Conditions**, **Calendar**, **Markets**, or
-   **Environment** only when the decision needs more context.
+   **Environment** only when the decision needs more context. Deadlines can be
+   added to your own calendar as `.ics` events; the brief can be printed.
 
 The farm profile is stored in the current browser with Zustand. There is no
 account, database, analytics SDK, advertising tracker, or AI model. The saved
@@ -27,14 +32,18 @@ requested; no server-side user profile is created.
 ## What is live
 
 - Open-Meteo seven-day point forecast at the saved coordinate.
-- Met Éireann active official warnings.
+- Met Éireann active official warnings, with whether each lists the saved
+  county and the hazard type as published.
 - DAFM LPIS 2024 nearby reference parcels.
 - DAFM current nitrates/derogation screening collection.
 - DAFM CAP 2025 county aggregates, parsed and cached server-side.
 - EPA Water Framework Directive 2019–2024 nearby classifications.
 - OPW current water-level sensor readings near the pin.
 - CSO AEA01 agricultural output and AHM05 output price indices.
-- A small, manually verified 2026 DAFM deadline watchlist.
+- A small, manually verified 2026 DAFM deadline watchlist. The nearest date
+  within 45 days also appears on the weekly brief.
+- OpenFreeMap vector base map (OpenMapTiles, OpenStreetMap data, no API key);
+  the dark style is derived from the light style at runtime.
 
 Unavailable or structurally invalid data stays unavailable. AgriView does not
 replace it with demo, sample, or synthetic values.

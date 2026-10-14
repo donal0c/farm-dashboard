@@ -4,19 +4,21 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-md text-sm font-semibold transition-colors disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-semibold disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default:
+          "bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80",
         outline:
-          "border border-border bg-background hover:bg-accent hover:text-accent-foreground",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
+          "border border-input bg-sheet text-foreground hover:border-foreground/40 hover:bg-muted/60 active:bg-muted",
+        ghost: "text-foreground hover:bg-muted active:bg-muted/80",
+        quiet: "px-0 text-primary hover:underline underline-offset-4",
       },
       size: {
         default: "px-4 py-2",
-        sm: "min-h-9 rounded-md px-3",
-        lg: "min-h-12 rounded-md px-8",
+        sm: "min-h-9 px-3 text-[13px]",
+        lg: "min-h-12 px-6 text-base",
       },
     },
     defaultVariants: {

@@ -193,7 +193,9 @@ describe("deterministic weekly briefing", () => {
 
     assert.equal(brief.items[0].id, "field-window");
     assert.equal(brief.items[1].id, "weather-warning");
-    assert.equal(brief.items.length, 3);
+    assert.equal(brief.items[2].id, "wind-check");
+    assert.equal(brief.items[2].priority, "watch");
+    assert.equal(brief.items.length, 4);
     assert.equal(brief.items.at(-1)?.id, "compliance-check");
   });
 
@@ -328,5 +330,186 @@ describe("deterministic weekly briefing", () => {
     assert.equal(boundary?.eyebrow, "Commercial boundary");
     assert.match(boundary?.title ?? "", /sale timing/i);
     assert.match(boundary?.detail ?? "", /Use Markets/);
+  });
+});
+
+describe("weekly briefing applicability and deadlines", () => {
+  const forecastDays = () =>
+    normalizeOpenMeteoForecast(
+      {
+        latitude: 53.4,
+        longitude: -7.8,
+        timezone: "Europe/Dublin",
+        daily: {
+          time: ["2026-07-18", "2026-07-19", "2026-07-20"],
+          weather_code: [1, 1, 1],
+          temperature_2m_max: [18, 18, 18],
+          temperature_2m_min: [9, 9, 9],
+          precipitation_sum: [0, 0, 0],
+          precipitation_probability_max: [10, 10, 10],
+          wind_gusts_10m_max: [20, 20, 20],
+        },
+      },
+      new Date("2026-07-18T08:00:00.000Z"),
+    );
+
+  it("demotes a regional warning that does not list the saved county to a watch", () => {
+    const warnings = normalizeMetWarnings(
+      [
+        {
+          id: "clare-yellow",
+          level: "yellow",
+          type: "Rain",
+          headline: "Status Yellow - Rain warning for Clare, Kerry",
+          onset: "2026-07-18T09:00:00Z",
+          expiry: "2026-07-20T23:00:00Z",
+          regions: ["EI03", "EI11"],
+        },
+      ],
+      new Date("2026-07-18T08:00:00Z"),
+    );
+    const brief = deriveWeeklyBrief({
+      forecast: forecastDays(),
+      warnings,
+      enterprise: "beef",
+      focus: "grazing",
+      region: "GALWAY",
+      now: new Date("2026-07-18T08:00:00Z"),
+    });
+    const warningItem = brief.items.find(
+      (item) => item.id === "weather-warning",
+    );
+    assert.equal(warningItem?.priority, "watch");
+    assert.equal(
+      warningItem?.eyebrow,
+      "Yellow rain warning · Galway not listed",
+    );
+    assert.match(warningItem?.summary ?? "", /do not include Galway/);
+  });
+
+  it("names the saved county when a warning covers it", () => {
+    const warnings = normalizeMetWarnings(
+      [
+        {
+          id: "galway-yellow",
+          level: "yellow",
+          type: "Wind",
+          headline: "Status Yellow - Wind warning for Galway, Mayo",
+          onset: "2026-07-18T09:00:00Z",
+          expiry: "2026-07-20T23:00:00Z",
+          regions: ["EI10", "EI20"],
+        },
+      ],
+      new Date("2026-07-18T08:00:00Z"),
+    );
+    const brief = deriveWeeklyBrief({
+      forecast: forecastDays(),
+      warnings,
+      enterprise: "beef",
+      focus: "grazing",
+      region: "GALWAY",
+      now: new Date("2026-07-18T08:00:00Z"),
+    });
+    const warningItem = brief.items.find(
+      (item) => item.id === "weather-warning",
+    );
+    assert.equal(warningItem?.priority, "check");
+    assert.equal(warningItem?.eyebrow, "Yellow wind warning · covers Galway");
+  });
+
+  it("surfaces a verified deadline inside the horizon and cites its source", () => {
+    const brief = deriveWeeklyBrief({
+      forecast: forecastDays(),
+      deadlines: [
+        {
+          id: "example-scheme",
+          date: "2026-08-01",
+          title: "Example scheme closes",
+          category: "scheme",
+          applicability: "Holdings in the example scheme.",
+          action: "Confirm the live terms.",
+          source: {
+            label: "DAFM example",
+            url: "https://www.gov.ie/example",
+            publishedAt: "2026-05-01",
+          },
+          verifiedAt: "2026-07-01",
+        },
+        {
+          id: "far-away",
+          date: "2026-12-01",
+          title: "Far away deadline",
+          category: "scheme",
+          applicability: "Nobody yet.",
+          action: "Wait.",
+          source: {
+            label: "DAFM example",
+            url: "https://www.gov.ie/example",
+            publishedAt: "2026-05-01",
+          },
+          verifiedAt: "2026-07-01",
+        },
+      ],
+      enterprise: "beef",
+      focus: "compliance",
+      now: new Date("2026-07-18T08:00:00Z"),
+    });
+    const deadline = brief.items.find((item) =>
+      item.id.startsWith("deadline-"),
+    );
+    assert.equal(deadline?.id, "deadline-example-scheme");
+    assert.equal(deadline?.priority, "check");
+    assert.match(deadline?.title ?? "", /in 15 days/);
+    assert.ok(brief.items.every((item) => item.id !== "deadline-far-away"));
+    const evidence = brief.evidence.find(
+      (item) => item.id === "deadline-example-scheme",
+    );
+    assert.equal(evidence?.sourceUrl, "https://www.gov.ie/example");
+    assert.equal(evidence?.confidence, "authoritative");
+  });
+
+  it("never shows more than one lead, two supporting items, and a boundary", () => {
+    const brief = deriveWeeklyBrief({
+      forecast: forecastDays(),
+      warnings: normalizeMetWarnings(
+        [
+          {
+            id: "galway-orange",
+            level: "orange",
+            type: "Rain",
+            headline: "Status Orange - Rain warning for Galway",
+            onset: "2026-07-18T09:00:00Z",
+            expiry: "2026-07-20T23:00:00Z",
+            regions: ["EI10"],
+          },
+        ],
+        new Date("2026-07-18T08:00:00Z"),
+      ),
+      deadlines: [
+        {
+          id: "soon",
+          date: "2026-07-25",
+          title: "Soon deadline",
+          category: "scheme",
+          applicability: "Everyone.",
+          action: "Check.",
+          source: {
+            label: "DAFM",
+            url: "https://www.gov.ie/soon",
+            publishedAt: "2026-05-01",
+          },
+          verifiedAt: "2026-07-01",
+        },
+      ],
+      enterprise: "beef",
+      focus: "grazing",
+      region: "GALWAY",
+      now: new Date("2026-07-18T08:00:00Z"),
+    });
+    assert.equal(brief.items.length, 4);
+    assert.equal(brief.items[0].id, "weather-warning");
+    assert.equal(brief.items[0].priority, "act");
+    assert.equal(brief.items[1].id, "field-window");
+    assert.equal(brief.items.at(-1)?.id, "compliance-check");
   });
 });

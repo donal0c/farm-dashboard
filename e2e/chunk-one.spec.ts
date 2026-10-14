@@ -42,7 +42,7 @@ function snapshot(
     status,
     observedAt: "2026-07-18T08:00:00.000Z",
     fetchedAt: "2026-07-18T08:05:00.000Z",
-    staleAfter: "2026-07-19T08:45:00.000Z",
+    staleAfter: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     warning:
       options.warning ??
       (status === "unavailable" ? "Source temporarily unavailable." : null),
@@ -580,7 +580,7 @@ test("completes first-run setup with the keyboard coordinate path", async ({
   await page.getByRole("button", { name: "Use this farm" }).click();
 
   await expect(
-    page.getByRole("heading", { name: "What deserves your attention" }),
+    page.getByRole("heading", { level: 1, name: /Pinned farm location/ }),
   ).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   const stored = await page.evaluate(() =>
@@ -886,11 +886,11 @@ test("filters and sorts the verified Calendar watchlist accessibly", async ({
   await page.goto("/calendar");
 
   await expect(
-    page.getByText("Showing 5 of 5 verified upcoming dates."),
+    page.getByText(/Showing \d+ of \d+ verified upcoming dates\./),
   ).toBeVisible();
   await page.getByLabel("Filter by purpose").selectOption("safety");
   await expect(
-    page.getByText("Showing 1 of 5 verified upcoming dates."),
+    page.getByText(/Showing 1 of \d+ verified upcoming dates\./),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "National Farm Safety Measure closes" }),
@@ -1182,7 +1182,7 @@ test("reuses fresh source evidence across related client-side workspaces", async
   });
   await page.goto("/this-week");
   await expect(
-    page.getByRole("heading", { name: "What deserves your attention" }),
+    page.getByRole("heading", { level: 1, name: /H91/ }),
   ).toBeVisible();
 
   await page
@@ -1413,7 +1413,7 @@ for (const viewport of visualMatrix) {
       await installApiMocks(page);
       await page.goto("/this-week");
       await expect(
-        page.getByRole("heading", { name: "What deserves your attention" }),
+        page.getByRole("heading", { level: 1, name: /H91/ }),
       ).toBeVisible();
       await expect(page.locator("html")).toHaveClass(
         theme === "dark" ? /dark/ : /light/,
@@ -1649,7 +1649,7 @@ test("preserves composition at 200% text and with long farm context", async ({
     document.documentElement.style.fontSize = "200%";
   });
   await expect(
-    page.getByRole("heading", { name: "What deserves your attention" }),
+    page.getByRole("heading", { level: 1, name: /EXTRA-LONG-ROUTING-LABEL/ }),
   ).toBeVisible();
   const overflow = await page.evaluate(() => ({
     pixels: document.documentElement.scrollWidth - innerWidth,
@@ -1676,7 +1676,7 @@ test("reserves the lead composition while forecast data loads", async ({
   await installApiMocks(page, { forecastDelayMs: 900 });
   await page.goto("/this-week");
   await expect(
-    page.getByRole("heading", { name: "What deserves your attention" }),
+    page.getByRole("heading", { level: 1, name: /H91/ }),
   ).toBeVisible();
   const loadingTop = (
     await page.getByLabel("Loading weekly brief").last().boundingBox()

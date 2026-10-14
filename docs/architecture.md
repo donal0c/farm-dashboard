@@ -63,6 +63,10 @@ There is no server-side user profile.
 - CAP: the large annual payload is parsed and aggregated once per cache window;
   clients receive county aggregates, never the raw beneficiary file.
 - CSO: clients load only AEA01 and, for a specific enterprise, AHM05.
+- Base map: the OpenFreeMap Positron style JSON is fetched once per session in
+  the browser (`lib/map/use-farm-map-style.ts`); the night style is derived
+  from it by `lib/map/style.ts` rather than fetched separately. No key, no
+  server proxy.
 
 This prevents repeated UI-level repair and avoids multiplying calls to fragile
 public services.
@@ -86,6 +90,17 @@ Transient upstream requests may make one bounded retry for timeout, transport,
 cap; contract failures and ordinary 4xx responses are never retried. Next/Vercel
 cache revalidation is the current last-known-good mechanism. There is no durable
 cross-deployment source cache, and the UI must not imply otherwise.
+
+## Briefing shape
+
+`lib/briefing/derive-weekly-brief.ts` returns one lead item, at most two
+supporting items, and a decision boundary. Inputs are the point forecast, the
+national warning feed, the saved county, the enterprise and focus, and the
+local verified deadline list. A warning that lists the saved county is a Check
+(Act when Red or Orange); a regional warning that does not list the county is
+only a Watch; a deadline within 45 days is a Watch, or a Check on a compliance
+focus. Every item resolves to an evidence record with source, scope,
+confidence, and a labelled time (`Checked`, `Issued`, `Verified`).
 
 ## Why there is no AI layer
 

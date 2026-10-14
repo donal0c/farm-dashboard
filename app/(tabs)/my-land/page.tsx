@@ -2,21 +2,20 @@
 
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowRight,
   Check,
-  CircleAlert,
   ExternalLink,
   Layers3,
   LocateFixed,
-  MapPin,
   RotateCcw,
 } from "lucide-react";
-import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { CoordinateFields } from "@/components/farm/coordinate-fields";
 import { IrelandMap } from "@/components/map/ireland-map";
 import { Button } from "@/components/ui/button";
+import { NeedsFarm, PageSkeleton } from "@/components/ui/needs-farm";
+import { Fact, PageIntro, SectionHeading } from "@/components/ui/page-intro";
+import { SourceNotice } from "@/components/ui/source-notice";
 import { fetchValidatedSourceSnapshot } from "@/lib/client/fetch-source-snapshot";
 import { sourceQueryStaleTime } from "@/lib/client/source-query-policy";
 import {
@@ -25,22 +24,13 @@ import {
 } from "@/lib/contracts/cap";
 import { featureCollectionContract } from "@/lib/contracts/geojson";
 import {
-  enterpriseLabels,
-  enterpriseOptions,
-  weekFocusLabels,
-  weekFocusOptions,
-} from "@/lib/farm-plan";
-import {
   formatNitrateScreeningLabel,
   formatParcelReference,
   humanizeLandUse,
   prioritizeSelectedParcel,
 } from "@/lib/land-format";
-import {
-  type FarmEnterprise,
-  type FarmWeekFocus,
-  useUiStore,
-} from "@/lib/store/ui-store";
+import { useUiStore } from "@/lib/store/ui-store";
+import { cn } from "@/lib/utils";
 
 type LatLng = { latitude: number; longitude: number };
 
@@ -63,10 +53,6 @@ function sourceAge(value: string | undefined) {
 export default function MyLandPage() {
   const farmLocation = useUiStore((state) => state.farmLocation);
   const setFarmLocation = useUiStore((state) => state.setFarmLocation);
-  const enterprise = useUiStore((state) => state.enterprise);
-  const setEnterprise = useUiStore((state) => state.setEnterprise);
-  const weekFocus = useUiStore((state) => state.weekFocus);
-  const setWeekFocus = useUiStore((state) => state.setWeekFocus);
   const hasHydrated = useUiStore((state) => state.hasHydrated);
   const [pendingPin, setPendingPin] = useState<LatLng | null>(null);
   const [isEditingPin, setIsEditingPin] = useState(false);
@@ -161,34 +147,14 @@ export default function MyLandPage() {
   ).sort();
   const nitrateLabels = stockingRates.map(formatNitrateScreeningLabel);
 
-  if (!hasHydrated) {
-    return (
-      <output className="block animate-pulse" aria-label="Loading saved farm">
-        <span className="block h-12 w-2/3 rounded bg-muted" />
-        <span className="mt-8 block h-96 rounded bg-muted" />
-      </output>
-    );
-  }
+  if (!hasHydrated) return <PageSkeleton label="Loading saved farm" />;
 
   if (!farmLocation || !point) {
     return (
-      <div className="max-w-2xl border-t border-border pt-8">
-        <MapPin className="h-7 w-7 text-primary" />
-        <h1 className="font-editorial mt-5 text-5xl font-medium tracking-[-0.03em]">
-          Set the farm first
-        </h1>
-        <p className="mt-4 text-base leading-7 text-muted-foreground">
-          Land evidence needs a saved manual pin. AgriView will not infer an
-          exact farm location from an Eircode.
-        </p>
-        <Link
-          href="/this-week"
-          className="mt-6 inline-flex min-h-11 items-center gap-2 font-semibold text-primary"
-        >
-          Set up the farm
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-      </div>
+      <NeedsFarm
+        title="Set the farm first"
+        detail="Land evidence needs a saved manual pin. AgriView will not infer an exact farm location from an Eircode."
+      />
     );
   }
 
@@ -205,116 +171,83 @@ export default function MyLandPage() {
 
   return (
     <div>
-      <header className="border-b border-border pb-7">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-              Saved farm · nearby evidence
-            </p>
-            <h1 className="font-editorial mt-2 text-5xl font-medium tracking-[-0.035em] sm:text-6xl">
-              Land around your pin
-            </h1>
-          </div>
+      <PageIntro
+        title="Land around your pin"
+        lede="LPIS parcels are reference features near the point you saved. They do not prove ownership, eligibility, or the boundary of your holding."
+        action={
           <Button
             variant="outline"
             onClick={() => {
               setIsEditingPin((current) => !current);
               setPendingPin(null);
             }}
-            className="gap-2"
           >
-            <LocateFixed className="h-4 w-4" />
+            <LocateFixed className="h-4 w-4" aria-hidden="true" />
             {isEditingPin ? "Stop moving pin" : "Move farm pin"}
           </Button>
-        </div>
-        <p className="mt-4 max-w-3xl text-base leading-7 text-muted-foreground">
-          LPIS parcels are reference features near the point you saved. They do
-          not prove ownership, eligibility, or the boundary of your holding.
-        </p>
-      </header>
+        }
+      />
 
-      <section className="grid min-h-[105px] gap-3 border-b border-border py-4 text-xs sm:grid-cols-2 lg:grid-cols-4">
-        <div>
-          <p className="text-muted-foreground">Nearby nitrate band</p>
-          <div className="mt-1 font-semibold">
-            {nitratesQuery.isLoading
-              ? "Loading"
-              : nitratesUnavailable
-                ? "Temporarily unavailable"
-                : nitrateLabels.length
-                  ? nitrateLabels.map((label) => (
-                      <p key={label.raw}>
-                        {label.rate}
-                        {label.effective ? ` · from ${label.effective}` : ""}
-                      </p>
-                    ))
-                  : "No nearby band returned"}
-          </div>
-        </div>
-        <div>
-          <p className="text-muted-foreground">Farm area</p>
-          <p className="mt-1 font-semibold">
-            {farmLocation.routingKey ?? farmLocation.label}
-            {farmLocation.county ? ` · ${farmLocation.county}` : ""}
-          </p>
-        </div>
-        <div>
-          <p className="text-muted-foreground">LPIS source</p>
-          <p className="mt-1 font-semibold">
-            {lpisQuery.isLoading
-              ? "Loading"
-              : lpisUnavailable
-                ? "Temporarily unavailable"
-                : lpisFeatureLimitReached
-                  ? `${parcels.length} unique · 500-feature limit`
-                  : `${parcels.length} nearby parcels`}
-          </p>
+      <dl className="grid min-h-[88px] gap-4 border-b border-rule py-5 sm:grid-cols-2 lg:grid-cols-4">
+        <Fact label="Nearby nitrate band">
+          {nitratesQuery.isLoading
+            ? "Loading"
+            : nitratesUnavailable
+              ? "Temporarily unavailable"
+              : nitrateLabels.length
+                ? nitrateLabels.map((label) => (
+                    <span key={label.raw} className="block">
+                      {label.rate}
+                      {label.effective ? ` · from ${label.effective}` : ""}
+                    </span>
+                  ))
+                : "No nearby band returned"}
+        </Fact>
+        <Fact label="Saved point">
+          {farmLocation.latitude.toFixed(4)},{" "}
+          {farmLocation.longitude.toFixed(4)}
+        </Fact>
+        <Fact label="LPIS source">
+          {lpisQuery.isLoading
+            ? "Loading"
+            : lpisUnavailable
+              ? "Temporarily unavailable"
+              : lpisFeatureLimitReached
+                ? `${parcels.length} unique · 500-feature limit`
+                : `${parcels.length} nearby parcels`}
           {lpisFeatureLimitReached ? (
-            <p className="mt-1 text-warning">
+            <span className="block text-xs font-normal text-check">
               Response capped; this is not a complete parcel count.
-            </p>
+            </span>
           ) : null}
-        </div>
-        <div>
-          <p className="text-muted-foreground">Last checked</p>
-          <p className="mt-1 font-semibold">
-            {sourceAge(lpisQuery.data?.fetchedAt)}
-          </p>
-        </div>
-      </section>
+        </Fact>
+        <Fact label="Last checked">{sourceAge(lpisQuery.data?.fetchedAt)}</Fact>
+      </dl>
 
       <section className="py-8">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Nearby evidence workspace
-            </p>
-            <h2 className="font-editorial mt-1 text-3xl font-medium">
-              Map and parcel register
-            </h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Select a parcel on either side to keep the visual and readable
-              views in step. Results cover the search around your pin, not a
-              declared farm boundary.
-            </p>
-          </div>
-          <fieldset className="flex flex-wrap gap-2">
-            <legend className="sr-only">Map layers</legend>
-            <Button
-              variant={showSoil ? "default" : "outline"}
-              aria-pressed={showSoil}
-              onClick={() => setShowSoil((value) => !value)}
-              className="gap-2"
-            >
-              {showSoil ? <Check className="h-4 w-4" /> : null}
-              EPA soil overlay
-            </Button>
-          </fieldset>
-        </div>
+        <SectionHeading
+          title="Map and parcel register"
+          lede="Select a parcel on either side to keep the visual and readable views in step. Results cover the search around your pin, not a declared farm boundary."
+          aside={
+            <fieldset className="flex flex-wrap gap-2">
+              <legend className="sr-only">Map layers</legend>
+              <Button
+                variant={showSoil ? "default" : "outline"}
+                aria-pressed={showSoil}
+                onClick={() => setShowSoil((value) => !value)}
+              >
+                {showSoil ? (
+                  <Check className="h-4 w-4" aria-hidden="true" />
+                ) : null}
+                EPA soil overlay
+              </Button>
+            </fieldset>
+          }
+        />
 
         {isEditingPin ? (
           <section
-            className="mt-5 grid gap-5 border-l-2 border-warning bg-warning/10 px-5 py-5 text-sm lg:grid-cols-[minmax(0,1fr)_320px]"
+            className="panel sheet-enter mt-5 grid gap-5 px-5 py-5 text-sm lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)]"
             aria-label="Move farm pin"
           >
             <div>
@@ -332,9 +265,8 @@ export default function MyLandPage() {
                   variant="ghost"
                   onClick={() => setPendingPin(null)}
                   disabled={!pendingPin}
-                  className="gap-2"
                 >
-                  <RotateCcw className="h-4 w-4" />
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
                   Undo candidate
                 </Button>
               </div>
@@ -348,10 +280,11 @@ export default function MyLandPage() {
           </section>
         ) : null}
 
-        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.7fr)]">
+        <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.7fr)]">
           <div className="min-w-0">
             <IrelandMap
               center={point}
+              candidate={pendingPin}
               onPickLocation={setPendingPin}
               onSelectParcel={setSelectedParcelId}
               pickLocation={isEditingPin}
@@ -359,42 +292,38 @@ export default function MyLandPage() {
               lpisGeoJson={lpisQuery.data?.data ?? undefined}
               showSoilLayer={showSoil}
             />
-            <div className="mt-3 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
-              <Layers3 className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="meta mt-3 flex items-start gap-2 text-xs">
+              <Layers3 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <p>
                 Green outlines are DAFM LPIS 2024 reference features. LPIS does
                 not establish ownership, eligibility, control, or your legal
-                holding boundary. EPA soil is a contextual WMS overlay.
+                holding boundary. EPA soil is a contextual WMS overlay. Base map
+                © OpenMapTiles © OpenStreetMap contributors.
               </p>
             </div>
           </div>
 
-          <div className="min-w-0 border-t border-border pt-5 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-            <div className="flex items-end justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  Readable register
-                </p>
-                <h3 className="font-editorial mt-1 text-2xl font-medium">
-                  Largest nearby parcels
-                </h3>
-              </div>
-              <p className="shrink-0 text-xs text-muted-foreground">
-                {totalArea.toFixed(1)} ha returned
-              </p>
-            </div>
+          <div className="min-w-0 border-t border-rule pt-5 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0">
+            <SectionHeading
+              as="h3"
+              title="Largest nearby parcels"
+              aside={
+                parcels.length ? (
+                  <p className="meta">{totalArea.toFixed(1)} ha returned</p>
+                ) : null
+              }
+            />
 
             {lpisFeatureLimitReached ? (
-              <div className="mt-4 flex gap-2 border-l-2 border-warning bg-warning/10 px-3 py-3 text-xs leading-5">
-                <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-                <p>
-                  The source hit its 500-feature response limit. The map and
-                  totals are a partial nearby sample, not a complete count.
-                </p>
-              </div>
+              <SourceNotice
+                tone="partial"
+                className="mt-4"
+                title="The source hit its 500-feature response limit."
+                detail="The map and totals are a partial nearby sample, not a complete count."
+              />
             ) : null}
 
-            <div className="mt-4 border-y border-border">
+            <div className="mt-4 border-y border-rule">
               {lpisQuery.isLoading ? (
                 <output
                   className="block animate-pulse"
@@ -404,19 +333,18 @@ export default function MyLandPage() {
                     <span
                       // biome-ignore lint/suspicious/noArrayIndexKey: Static loading placeholders have no identity.
                       key={index}
-                      className="block h-16 border-b border-border bg-muted last:border-b-0"
+                      className="block h-16 border-b border-rule bg-muted last:border-b-0"
                     />
                   ))}
                 </output>
               ) : lpisUnavailable ? (
-                <div className="py-6 text-sm">
-                  <p className="font-semibold text-destructive">
-                    LPIS reference parcels are temporarily unavailable.
-                  </p>
-                  <p className="mt-1 leading-6 text-muted-foreground">
-                    The request failed; AgriView has not presented that as an
-                    empty result.
-                  </p>
+                <div className="py-4">
+                  <SourceNotice
+                    tone="unavailable"
+                    title="LPIS reference parcels are temporarily unavailable."
+                    detail="The request failed; AgriView has not presented that as an empty result."
+                    onRetry={() => void lpisQuery.refetch()}
+                  />
                 </div>
               ) : visibleParcels.length ? (
                 visibleParcels.map((parcel) => {
@@ -433,18 +361,20 @@ export default function MyLandPage() {
                       onClick={() => setSelectedParcelId(parcel.id)}
                       onFocus={() => setSelectedParcelId(parcel.id)}
                       onPointerEnter={() => setSelectedParcelId(parcel.id)}
-                      className={`grid w-full min-h-16 items-center gap-2 border-b border-border px-2 py-3 text-left transition-colors last:border-b-0 sm:grid-cols-[32px_minmax(0,1fr)_72px] ${
+                      className={cn(
+                        "grid w-full min-h-16 items-center gap-2 border-b border-rule px-2 py-3 text-left transition-colors last:border-b-0 sm:grid-cols-[32px_minmax(0,1fr)_72px]",
                         isSelected
-                          ? "bg-primary/10"
-                          : "hover:bg-muted/60 focus-visible:bg-muted/60"
-                      }`}
+                          ? "bg-accent/70"
+                          : "hover:bg-muted/60 focus-visible:bg-muted/60",
+                      )}
                     >
                       <span
-                        className={`font-editorial flex h-7 w-7 items-center justify-center rounded-full text-sm ${
+                        className={cn(
+                          "font-editorial flex h-7 w-7 items-center justify-center rounded-full text-sm",
                           isSelected
                             ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground"
-                        }`}
+                            : "bg-muted text-muted-foreground",
+                        )}
                         aria-hidden="true"
                       >
                         {parcelRank}
@@ -474,37 +404,32 @@ export default function MyLandPage() {
                   );
                 })
               ) : (
-                <div className="py-6 text-sm">
-                  <p className="font-semibold">
-                    No valid LPIS parcel rows were returned nearby.
-                  </p>
-                  <p className="mt-1 leading-6 text-muted-foreground">
-                    This is a valid empty response for this search point, not
-                    evidence that no parcel or holding exists.
-                  </p>
+                <div className="py-4">
+                  <SourceNotice
+                    tone="empty"
+                    title="No valid LPIS parcel rows were returned nearby."
+                    detail="This is a valid empty response for this search point, not evidence that no parcel or holding exists."
+                  />
                 </div>
               )}
             </div>
-            <p className="mt-3 text-xs leading-5 text-muted-foreground">
+            <p className="meta mt-3 text-xs">
               Showing up to eight unique parcels, largest first. If you select
               another map feature, it replaces the final row so the readable
-              register stays in step. Published source references remain
-              secondary to the land-use labels.
+              register stays in step.
             </p>
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 border-t border-border pt-5 sm:grid-cols-2">
+        <div className="mt-6 grid gap-6 border-t border-rule pt-6 sm:grid-cols-2">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Nitrate screening context
-            </p>
+            <h3 className="text-sm font-semibold">Nitrate screening context</h3>
             {nitratesQuery.isLoading ? (
               <p className="mt-2 text-sm text-muted-foreground">
                 Checking the published map around the pin…
               </p>
             ) : nitratesUnavailable ? (
-              <p className="mt-2 text-sm text-destructive">
+              <p className="mt-2 text-sm text-act">
                 Nitrate screening is temporarily unavailable.
               </p>
             ) : nitrateLabels.length ? (
@@ -526,10 +451,10 @@ export default function MyLandPage() {
               </p>
             )}
           </div>
-          <div className="text-xs leading-5 text-muted-foreground">
-            <p className="font-semibold uppercase tracking-[0.14em]">
+          <div className="text-sm leading-6 text-muted-foreground">
+            <h3 className="text-sm font-semibold text-foreground">
               How to use this
-            </p>
+            </h3>
             <p className="mt-2">
               This workspace supplies location context to the weekly brief. It
               is not a compliance calculator. Confirm current DAFM maps, scheme
@@ -540,13 +465,10 @@ export default function MyLandPage() {
         </div>
       </section>
 
-      <section className="grid gap-6 border-t border-border py-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,460px)]">
+      <section className="grid gap-6 border-t border-rule py-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,460px)]">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            County context
-          </p>
-          <h2 className="font-editorial mt-1 text-3xl font-medium">
-            CAP beneficiaries
+          <h2 className="display display-sm">
+            CAP beneficiaries in the county
           </h2>
           <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
             A public county aggregate for context only. It is not a farm payment
@@ -559,18 +481,21 @@ export default function MyLandPage() {
               Loading county context…
             </p>
           ) : capUnavailable ? (
-            <p className="text-sm leading-6 text-muted-foreground">
-              CAP county context is temporarily unavailable.
-            </p>
+            <SourceNotice
+              tone="unavailable"
+              title="CAP county context is temporarily unavailable."
+              detail="No county figure has been substituted."
+              onRetry={() => void capQuery.refetch()}
+            />
           ) : capQuery.data?.data ? (
             <>
-              <p className="font-editorial text-4xl font-medium">
-                {capQuery.data.data.beneficiaries.toLocaleString("en-IE")}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="text-base leading-7">
+                <strong className="font-semibold">
+                  {capQuery.data.data.beneficiaries.toLocaleString("en-IE")}
+                </strong>{" "}
                 beneficiaries in {capQuery.data.data.county}, 2025
               </p>
-              <p className="mt-4 text-sm leading-6 text-muted-foreground">
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 Total published payments:{" "}
                 <strong className="font-semibold text-foreground">
                   {new Intl.NumberFormat("en-IE", {
@@ -585,10 +510,10 @@ export default function MyLandPage() {
                 href={capQuery.data.source.url}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary"
+                className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary hover:underline"
               >
                 Official dataset
-                <ExternalLink className="h-4 w-4" />
+                <ExternalLink className="h-4 w-4" aria-hidden="true" />
               </a>
             </>
           ) : (
@@ -601,66 +526,7 @@ export default function MyLandPage() {
         </aside>
       </section>
 
-      <section
-        id="farm-settings"
-        className="grid gap-6 border-t border-border py-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,460px)]"
-      >
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Farm settings
-          </p>
-          <h2 className="font-editorial mt-1 text-3xl font-medium">
-            Tune the working brief
-          </h2>
-          <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
-            These choices tune the weekly brief when a relevant rule exists and
-            choose the national series shown under Markets. They do not change
-            the underlying public data.
-          </p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="grid gap-2 text-xs font-semibold text-muted-foreground">
-            Main enterprise
-            <select
-              value={enterprise}
-              onChange={(event) =>
-                setEnterprise(event.target.value as FarmEnterprise)
-              }
-              className="h-11 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-            >
-              {enterpriseOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <span className="font-normal">
-              Current: {enterpriseLabels[enterprise]}
-            </span>
-          </label>
-          <label className="grid gap-2 text-xs font-semibold text-muted-foreground">
-            This week’s focus
-            <select
-              value={weekFocus}
-              onChange={(event) =>
-                setWeekFocus(event.target.value as FarmWeekFocus)
-              }
-              className="h-11 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-            >
-              {weekFocusOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <span className="font-normal">
-              Current: {weekFocusLabels[weekFocus]}
-            </span>
-          </label>
-        </div>
-      </section>
-
-      <footer className="border-t border-border py-6 text-sm leading-6 text-muted-foreground">
+      <footer className="border-t border-rule py-6 text-sm leading-6 text-muted-foreground">
         The map is a screening workspace. Confirm official scheme maps,
         correspondence, and field records before acting.
       </footer>

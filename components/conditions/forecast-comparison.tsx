@@ -1,8 +1,12 @@
 "use client";
 
-import { CloudRain, CloudSun, Sun } from "lucide-react";
-
+import {
+  formatDegrees,
+  weatherIcon,
+} from "@/components/briefing/weekly-evidence-strip";
+import { briefingRules } from "@/lib/briefing/rules";
 import type { ForecastDay } from "@/lib/sources/open-meteo";
+import { cn } from "@/lib/utils";
 
 function formatDay(date: string, index: number) {
   if (index === 0) return "Today";
@@ -10,12 +14,6 @@ function formatDay(date: string, index: number) {
     weekday: "short",
     day: "numeric",
   }).format(new Date(`${date}T12:00:00Z`));
-}
-
-function weatherIcon(code: number) {
-  if (code <= 1) return Sun;
-  if (code >= 51) return CloudRain;
-  return CloudSun;
 }
 
 type ForecastComparisonProps = {
@@ -31,29 +29,36 @@ export function ForecastComparison({ days }: ForecastComparisonProps) {
     Math.max(...days.map((day) => day.temperatureMaxC)) + 2,
   );
   const temperatureRange = Math.max(temperatureMax - temperatureMin, 1);
+  const gustThreshold = briefingRules.windCheck.threshold;
   const gridStyle = {
-    gridTemplateColumns: `repeat(${days.length}, minmax(92px, 1fr))`,
+    gridTemplateColumns: `repeat(${days.length}, minmax(96px, 1fr))`,
   };
 
   return (
     <section
-      className="mt-5 w-full max-w-full overflow-x-auto border-y border-border"
+      className="panel mt-5 w-full max-w-full overflow-x-auto"
       aria-label={`${days.length}-day rain and temperature comparison`}
       style={{ contain: "layout paint" }}
       // biome-ignore lint/a11y/noNoninteractiveTabindex: Keyboard users need to reach and scroll this overflow region.
       tabIndex={0}
     >
-      <div style={{ minWidth: `${Math.max(days.length * 96, 560)}px` }}>
-        <div className="grid border-b border-border" style={gridStyle}>
+      <div style={{ minWidth: `${Math.max(days.length * 100, 560)}px` }}>
+        <div className="grid border-b border-rule" style={gridStyle}>
           {days.map((day, index) => {
             const Icon = weatherIcon(day.weatherCode);
             return (
               <div
                 key={day.date}
-                className="flex items-center justify-center gap-2 border-r border-border px-2 py-3 last:border-r-0"
+                className="flex items-center justify-center gap-2 border-r border-rule px-2 py-3 last:border-r-0"
               >
-                <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
-                <p className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                <Icon
+                  className={cn(
+                    "h-4 w-4",
+                    day.weatherCode >= 51 ? "text-chart-2" : "text-chart-3",
+                  )}
+                  aria-hidden="true"
+                />
+                <p className="text-xs font-semibold text-foreground">
                   {formatDay(day.date, index)}
                 </p>
               </div>
@@ -69,25 +74,26 @@ export function ForecastComparison({ days }: ForecastComparisonProps) {
               ((day.temperatureMaxC - temperatureMin) / temperatureRange) * 100;
             const rainHeight =
               day.rainMm > 0 ? Math.max((day.rainMm / rainMax) * 100, 3) : 0;
+            const gusty = day.windGustKph >= gustThreshold;
 
             return (
               <article
                 key={day.date}
                 data-forecast-day={day.date}
-                className="min-w-0 border-r border-border px-2 py-4 last:border-r-0"
+                className="min-w-0 border-r border-rule px-2 py-4 last:border-r-0"
               >
                 <div className="relative mx-auto h-32 w-12" aria-hidden="true">
-                  <span className="absolute inset-y-0 left-1/2 w-px bg-border" />
+                  <span className="absolute inset-y-0 left-1/2 w-px bg-rule" />
                   <span
                     data-temperature-range
-                    className="absolute left-1/2 w-1.5 -translate-x-1/2 rounded-full bg-primary/45"
+                    className="absolute left-1/2 w-1.5 -translate-x-1/2 rounded-full bg-primary/40"
                     style={{
                       bottom: `${lowPosition}%`,
                       height: `${Math.max(highPosition - lowPosition, 3)}%`,
                     }}
                   />
                   <span
-                    className="absolute left-1/2 h-2.5 w-2.5 -translate-x-1/2 translate-y-1/2 rounded-full border-2 border-card bg-primary shadow-sm"
+                    className="absolute left-1/2 h-2.5 w-2.5 -translate-x-1/2 translate-y-1/2 rounded-full border-2 border-sheet bg-primary shadow-sm"
                     style={{ bottom: `${highPosition}%` }}
                   />
                   <span
@@ -96,10 +102,10 @@ export function ForecastComparison({ days }: ForecastComparisonProps) {
                   />
                 </div>
                 <p className="mt-2 text-center text-sm font-semibold">
-                  {day.temperatureMaxC.toFixed(0)}°
+                  {formatDegrees(day.temperatureMaxC)}°
                   <span className="font-normal text-muted-foreground">
                     {" "}
-                    / {day.temperatureMinC.toFixed(0)}°
+                    / {formatDegrees(day.temperatureMinC)}°
                   </span>
                 </p>
 
@@ -109,11 +115,11 @@ export function ForecastComparison({ days }: ForecastComparisonProps) {
                 >
                   <span
                     data-rain-bar
-                    className="absolute inset-x-0 bottom-0 rounded-t bg-info/70"
+                    className="absolute inset-x-0 bottom-0 rounded-t bg-info/75"
                     style={{ height: `${rainHeight}%` }}
                   />
                 </div>
-                <p className="mt-2 text-center text-sm font-semibold">
+                <p className="mt-2 text-center text-sm font-semibold text-info">
                   {day.rainMm.toFixed(1)} mm
                 </p>
                 <dl className="mt-3 grid gap-1 text-center text-xs text-muted-foreground">
@@ -123,7 +129,9 @@ export function ForecastComparison({ days }: ForecastComparisonProps) {
                   </div>
                   <div>
                     <dt className="sr-only">Peak gust</dt>
-                    <dd>{day.windGustKph.toFixed(0)} km/h gust</dd>
+                    <dd className={cn(gusty && "font-semibold text-check")}>
+                      {day.windGustKph.toFixed(0)} km/h gust
+                    </dd>
                   </div>
                 </dl>
               </article>
@@ -131,7 +139,7 @@ export function ForecastComparison({ days }: ForecastComparisonProps) {
           })}
         </div>
 
-        <div className="flex flex-wrap gap-x-5 gap-y-2 border-t border-border px-3 py-3 text-xs text-muted-foreground">
+        <div className="flex flex-wrap gap-x-5 gap-y-2 border-t border-rule px-3 py-3 text-xs text-muted-foreground">
           <p>
             <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-primary" />
             Daily high
@@ -141,9 +149,10 @@ export function ForecastComparison({ days }: ForecastComparisonProps) {
             Daily low
           </p>
           <p>
-            <span className="mr-2 inline-block h-3 w-2 rounded-t bg-info/70" />
+            <span className="mr-2 inline-block h-3 w-2 rounded-t bg-info/75" />
             Rain amount
           </p>
+          <p>Gusts in bold at {gustThreshold} km/h and above.</p>
         </div>
       </div>
     </section>

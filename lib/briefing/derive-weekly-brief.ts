@@ -2,18 +2,30 @@ import type { SourceSnapshot } from "@/lib/contracts/source-snapshot";
 import type { MetWarning } from "@/lib/sources/met-warnings";
 import type { FarmForecast, ForecastDay } from "@/lib/sources/open-meteo";
 import type { FarmEnterprise, FarmWeekFocus } from "@/lib/store/ui-store";
-import { warningRegionsIncludeCounty } from "../ireland/counties.ts";
+import { upcomingComplianceItems } from "../compliance/calendar.ts";
+import type { ComplianceDate } from "../compliance/rules.ts";
+import {
+  normalizeIrishCounty,
+  warningRegionsIncludeCounty,
+} from "../ireland/counties.ts";
 import { briefingRules } from "./rules.ts";
-import type { BriefItem, WeeklyBrief } from "./types";
+import type { BriefEvidence, BriefItem, WeeklyBrief } from "./types";
 
 type BriefInput = {
   forecast: SourceSnapshot<FarmForecast>;
   warnings?: SourceSnapshot<MetWarning[]>;
+  /** Verified deadline watchlist; local data with an official source each. */
+  deadlines?: readonly ComplianceDate[];
   enterprise: FarmEnterprise;
   focus: FarmWeekFocus;
   region?: string | null;
   now?: Date;
 };
+
+/** The brief shows one lead priority and at most this many supporting items. */
+export const SUPPORTING_ITEM_LIMIT = 2;
+/** Deadlines further out than this stay on the Calendar page only. */
+export const DEADLINE_HORIZON_DAYS = 45;
 
 function wettestDay(days: ForecastDay[]) {
   return [...days].sort((a, b) => b.rainMm - a.rainMm)[0];
@@ -39,6 +51,12 @@ function formatDay(date: string) {
   );
 }
 
+function titleCaseCounty(county: string) {
+  return county
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function warningSummary(description: string) {
   const firstSection = description
     .split(/Please check|Potential impacts/i)[0]
@@ -55,38 +73,63 @@ function warningSummary(description: string) {
 function briefRank(item: BriefItem, focus: FarmWeekFocus) {
   if (item.id === "weather-warning" && item.priority === "act") return 0;
   if (focus === "sales" && item.id === "compliance-check") return 1;
-  if (item.priority === "act") return 2;
-  if (item.priority === "check") return 3;
-  return 4;
+  if (focus === "compliance" && item.id.startsWith("deadline-")) return 2;
+  if (item.id === "compliance-check") return 6;
+  if (item.priority === "act") return 3;
+  if (item.priority === "check") return 4;
+  return 5;
 }
 
 const warningRank = { Red: 0, Orange: 1, Yellow: 2, Advisory: 3, Unknown: 4 };
 
+type WarningApplicability = "covers-farm" | "national" | "elsewhere";
+
+function warningApplicability(
+  warning: MetWarning,
+  region?: string | null,
+): WarningApplicability {
+  if (warningRegionsIncludeCounty(warning.regions, region)) {
+    return "covers-farm";
+  }
+  if (
+    !warning.regions.length ||
+    warning.regions.some((item) => /ireland|national|all/i.test(item))
+  ) {
+    return "national";
+  }
+  // Without a saved county we cannot say a regional warning is elsewhere.
+  return normalizeIrishCounty(region) ? "elsewhere" : "national";
+}
+
+const applicabilityRank: Record<WarningApplicability, number> = {
+  "covers-farm": 0,
+  national: 1,
+  elsewhere: 2,
+};
+
 function rankWarnings(warnings: MetWarning[], region?: string | null) {
-  const applicability = (warning: MetWarning) => {
-    if (warningRegionsIncludeCounty(warning.regions, region)) {
-      return 0;
-    }
-    if (
-      !warning.regions.length ||
-      warning.regions.some((item) => /ireland|national|all/i.test(item))
-    ) {
-      return 1;
-    }
-    return 2;
-  };
   return [...warnings].sort(
     (left, right) =>
-      applicability(left) - applicability(right) ||
+      applicabilityRank[warningApplicability(left, region)] -
+        applicabilityRank[warningApplicability(right, region)] ||
       warningRank[left.level] - warningRank[right.level] ||
       Date.parse(left.startsAt) - Date.parse(right.startsAt) ||
       left.id.localeCompare(right.id),
   );
 }
 
+function formatInForce(expiresAt: string) {
+  return new Intl.DateTimeFormat("en-IE", {
+    weekday: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(expiresAt));
+}
+
 export function deriveWeeklyBrief({
   forecast,
   warnings,
+  deadlines = [],
   enterprise,
   focus,
   region,
@@ -102,23 +145,39 @@ export function deriveWeeklyBrief({
   const dry = driestWindow(days);
   const totalRain = days.reduce((sum, day) => sum + day.rainMm, 0);
   const items: BriefItem[] = [];
+  const evidence: BriefEvidence[] = [];
   const rankedWarnings = rankWarnings(warnings?.data ?? [], region);
   const activeWarning = rankedWarnings[0];
+  const county = normalizeIrishCounty(region);
+  const countyLabel = county ? titleCaseCounty(county) : null;
 
   if (activeWarning) {
+    const applicability = warningApplicability(activeWarning, region);
+    const hazard = activeWarning.type
+      ? `${activeWarning.level} ${activeWarning.type.toLowerCase()} warning`
+      : `${activeWarning.level} weather warning`;
+    const severe =
+      activeWarning.level === "Red" || activeWarning.level === "Orange";
+    const priority =
+      applicability === "elsewhere" ? "watch" : severe ? "act" : "check";
+    const eyebrow =
+      applicability === "covers-farm" && countyLabel
+        ? `${hazard} · covers ${countyLabel}`
+        : applicability === "elsewhere" && countyLabel
+          ? `${hazard} · ${countyLabel} not listed`
+          : hazard;
+    const inForce = `In force until ${formatInForce(activeWarning.expiresAt)}.`;
     items.push({
       id: "weather-warning",
-      priority:
-        activeWarning.level === "Red" || activeWarning.level === "Orange"
-          ? "act"
-          : "check",
-      eyebrow: `${activeWarning.level} weather notice`,
+      priority,
+      eyebrow,
       title: activeWarning.headline,
-      summary: `In force until ${new Intl.DateTimeFormat("en-IE", {
-        weekday: "long",
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(new Date(activeWarning.expiresAt))}.`,
+      summary:
+        applicability === "covers-farm" && countyLabel
+          ? `Met Éireann lists ${countyLabel}. ${inForce}`
+          : applicability === "elsewhere" && countyLabel
+            ? `The listed counties do not include ${countyLabel}. ${inForce}`
+            : inForce,
       detail: warningSummary(activeWarning.description),
       evidenceId: "met-warning",
       relevantDates: [
@@ -179,19 +238,50 @@ export function deriveWeeklyBrief({
   }
 
   if (days.length >= 2) {
+    const gusty = windiest.windGustKph >= briefingRules.windCheck.threshold;
     items.push({
       id: "wind-check",
-      priority: "check",
-      eyebrow: focus === "spraying" ? "Spray check" : "Wind check",
-      title:
-        windiest.windGustKph >= briefingRules.windCheck.threshold
-          ? `Strong gusts could constrain work on ${formatDay(windiest.date)}`
-          : `Wind is not the main weekly constraint`,
+      priority: gusty ? "check" : "watch",
+      eyebrow: focus === "spraying" ? "Spray check" : "Wind",
+      title: gusty
+        ? `Strong gusts could constrain work on ${formatDay(windiest.date)}`
+        : "Wind is not the main weekly constraint",
       summary: `Peak modelled gusts reach ${windiest.windGustKph.toFixed(0)} km/h on ${formatDay(windiest.date)}.`,
       detail:
         "Forecast gusts are not field measurements. Check the latest local forecast and product rules immediately before weather-sensitive work.",
       evidenceId: "forecast-wind",
       relevantDates: [windiest.date],
+    });
+  }
+
+  const nextDeadline = upcomingComplianceItems(deadlines, now).find(
+    (item) => item.days <= DEADLINE_HORIZON_DAYS,
+  );
+  if (nextDeadline) {
+    const evidenceId = `deadline-${nextDeadline.id}`;
+    items.push({
+      id: evidenceId,
+      priority: focus === "compliance" ? "check" : "watch",
+      eyebrow: "Verified deadline",
+      title:
+        nextDeadline.days === 0
+          ? `${nextDeadline.title} today`
+          : `${nextDeadline.title} in ${nextDeadline.days} ${nextDeadline.days === 1 ? "day" : "days"}`,
+      summary: `Applies to: ${nextDeadline.applicability}`,
+      detail: nextDeadline.action,
+      evidenceId,
+      relevantDates: [nextDeadline.date],
+    });
+    evidence.push({
+      id: evidenceId,
+      label: nextDeadline.title,
+      sourceLabel: nextDeadline.source.label,
+      sourceUrl: nextDeadline.source.url,
+      observedAt: `${nextDeadline.verifiedAt}T12:00:00Z`,
+      observedLabel: "Verified" as const,
+      scope: "national",
+      confidence: "authoritative",
+      explanation: `A hand-verified DAFM date published ${nextDeadline.source.publishedAt} and checked against the official page on ${nextDeadline.verifiedAt}. It appears here because it falls within ${DEADLINE_HORIZON_DAYS} days. Scheme correspondence and current terms remain authoritative.`,
     });
   }
 
@@ -220,11 +310,14 @@ export function deriveWeeklyBrief({
   const rankedItems = [...items].sort(
     (left, right) => briefRank(left, focus) - briefRank(right, focus),
   );
-  const finalItem = rankedItems.at(-1);
-  const finalItems =
-    rankedItems.length > 3 && finalItem
-      ? [rankedItems[0], rankedItems[1], finalItem]
-      : rankedItems;
+  const lead = rankedItems[0];
+  const boundary = rankedItems.find(
+    (item) => item.id === "compliance-check" && item !== lead,
+  );
+  const supporting = rankedItems
+    .filter((item) => item !== lead && item !== boundary)
+    .slice(0, SUPPORTING_ITEM_LIMIT);
+  const finalItems = [lead, ...supporting, ...(boundary ? [boundary] : [])];
 
   return {
     generatedAt: now.toISOString(),
@@ -238,10 +331,14 @@ export function deriveWeeklyBrief({
               sourceLabel: warnings.source.label,
               sourceUrl: warnings.source.url,
               observedAt: warnings.observedAt,
+              observedLabel: "Issued" as const,
               scope: warnings.scope,
               confidence: warnings.confidence,
               explanation: [
-                "Warnings are ordered by saved-region applicability, severity, active period, and stable id. Red or Orange is promoted to Act; Yellow remains a Check.",
+                "Warnings are ordered by saved-county applicability, severity, active period, and stable id. Red or Orange is promoted to Act; Yellow remains a Check; a regional warning that does not list the saved county is only a Watch.",
+                activeWarning.certainty
+                  ? `Met Éireann certainty: ${activeWarning.certainty}.`
+                  : null,
                 rankedWarnings.length > 1
                   ? `Also active: ${rankedWarnings
                       .slice(1)
@@ -263,6 +360,7 @@ export function deriveWeeklyBrief({
               sourceLabel: forecast.source.label,
               sourceUrl: forecast.source.url,
               observedAt: forecast.observedAt,
+              observedLabel: "Checked" as const,
               scope: forecast.scope,
               confidence: forecast.confidence,
               explanation:
@@ -275,6 +373,7 @@ export function deriveWeeklyBrief({
         sourceLabel: forecast.source.label,
         sourceUrl: forecast.source.url,
         observedAt: forecast.observedAt,
+        observedLabel: "Checked" as const,
         scope: forecast.scope,
         confidence: forecast.confidence,
         explanation: `${briefingRules.groundAccess.rationale} Threshold: ${briefingRules.groundAccess.threshold} ${briefingRules.groundAccess.unit}. Version ${briefingRules.groundAccess.version}.`,
@@ -285,6 +384,7 @@ export function deriveWeeklyBrief({
         sourceLabel: forecast.source.label,
         sourceUrl: forecast.source.url,
         observedAt: forecast.observedAt,
+        observedLabel: "Checked" as const,
         scope: forecast.scope,
         confidence: forecast.confidence,
         explanation: `${briefingRules.workWindow.rationale} Version ${briefingRules.workWindow.version}.`,
@@ -295,10 +395,12 @@ export function deriveWeeklyBrief({
         sourceLabel: forecast.source.label,
         sourceUrl: forecast.source.url,
         observedAt: forecast.observedAt,
+        observedLabel: "Checked" as const,
         scope: forecast.scope,
         confidence: forecast.confidence,
         explanation: `${briefingRules.windCheck.rationale} Attention threshold: ${briefingRules.windCheck.threshold} ${briefingRules.windCheck.unit}. Version ${briefingRules.windCheck.version}.`,
       },
+      ...evidence,
       {
         id: "decision-boundary",
         label: "Decision boundary",

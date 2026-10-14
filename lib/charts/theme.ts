@@ -22,7 +22,7 @@ export const CHART_COLOR_LIST = [
 ];
 
 const fontFamily =
-  "var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif";
+  "var(--font-plex-sans), ui-sans-serif, system-ui, -apple-system, sans-serif";
 
 const axisCommon = {
   axisLine: { show: false },

@@ -1,6 +1,7 @@
 "use client";
 
 import { ExternalLink, X } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { BriefEvidence } from "@/lib/briefing/types";
@@ -14,6 +15,21 @@ function formatObserved(value: string | null) {
     timeStyle: "short",
   }).format(new Date(value));
 }
+
+const confidenceCopy: Record<string, string> = {
+  authoritative: "Published by the responsible body",
+  screening: "A screening prompt, not a determination",
+  estimate: "A model estimate at the saved point",
+  sample: "Illustrative only",
+};
+
+const scopeCopy: Record<string, string> = {
+  farm: "At the saved pin",
+  nearby: "Near the saved pin",
+  county: "County-level",
+  regional: "Regional",
+  national: "National",
+};
 
 export function EvidencePanel({
   evidence,
@@ -62,12 +78,14 @@ export function EvidencePanel({
   if (!evidence) return null;
 
   const external = evidence.sourceUrl.startsWith("http");
+  const sourceClass =
+    "flex min-h-12 items-center justify-between gap-3 rounded-md border border-rule bg-background px-3 text-sm font-semibold hover:border-foreground/40";
 
   return (
     <>
       <button
         type="button"
-        className="fixed inset-0 z-40 bg-foreground/45 backdrop-blur-[2px] xl:hidden"
+        className="fixed inset-0 z-40 bg-foreground/40 backdrop-blur-[2px] xl:hidden"
         onClick={closeEvidence}
         aria-label="Close evidence overlay"
       />
@@ -78,16 +96,13 @@ export function EvidencePanel({
         aria-modal={isDialog ? true : undefined}
         aria-labelledby="evidence-panel-title"
         tabIndex={-1}
-        className="fixed inset-x-3 bottom-20 top-16 z-50 overflow-auto rounded-md border border-border bg-card shadow-[0_18px_45px_-20px_rgba(28,37,29,0.65)] xl:sticky xl:inset-auto xl:top-10 xl:z-auto xl:max-h-[calc(100dvh-5rem)] xl:rounded-none xl:shadow-none"
+        className="sheet dock-enter fixed inset-x-3 bottom-20 top-16 z-50 overflow-auto shadow-dock xl:sticky xl:inset-auto xl:top-9 xl:z-auto xl:max-h-[calc(100dvh-4.5rem)] xl:shadow-sheet"
       >
-        <div className="paper-grain flex items-start justify-between border-b border-border px-5 py-5">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">
-              Why this is here
-            </p>
+        <div className="flex items-start justify-between gap-3 border-b border-rule px-5 pb-4 pt-5">
+          <div className="min-w-0">
             <h2
               id="evidence-panel-title"
-              className="font-editorial mt-2 text-[1.7rem] font-medium leading-tight"
+              className="display display-sm text-[1.35rem]"
             >
               {evidence.label}
             </h2>
@@ -96,39 +111,59 @@ export function EvidencePanel({
             ref={closeButtonRef}
             type="button"
             onClick={closeEvidence}
-            className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="Close evidence"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="grid gap-5 px-5 py-6 text-sm">
-          <p className="leading-6 text-foreground/78">{evidence.explanation}</p>
-          <dl className="grid gap-3 border-y border-border py-4">
-            <div className="flex items-start justify-between gap-4">
+        <div className="grid gap-5 px-5 py-5 text-sm">
+          <p className="leading-6 text-foreground/85">{evidence.explanation}</p>
+          <dl className="grid gap-3 border-y border-rule py-4">
+            <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3">
               <dt className="text-muted-foreground">Scope</dt>
-              <dd className="font-medium capitalize">{evidence.scope}</dd>
+              <dd className="font-medium">
+                {scopeCopy[evidence.scope] ?? evidence.scope}
+              </dd>
             </div>
-            <div className="flex items-start justify-between gap-4">
+            <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3">
               <dt className="text-muted-foreground">Confidence</dt>
-              <dd className="font-medium capitalize">{evidence.confidence}</dd>
+              <dd className="font-medium">
+                <span className="capitalize">{evidence.confidence}</span>
+                {confidenceCopy[evidence.confidence] ? (
+                  <span className="block text-xs font-normal text-muted-foreground">
+                    {confidenceCopy[evidence.confidence]}
+                  </span>
+                ) : null}
+              </dd>
             </div>
-            <div className="flex items-start justify-between gap-4">
-              <dt className="text-muted-foreground">Observed</dt>
-              <dd className="text-right font-medium">
+            <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3">
+              <dt className="text-muted-foreground">
+                {evidence.observedLabel ?? "Observed"}
+              </dt>
+              <dd className="font-medium">
                 {formatObserved(evidence.observedAt)}
               </dd>
             </div>
           </dl>
-          <a
-            href={evidence.sourceUrl}
-            target={external ? "_blank" : undefined}
-            rel={external ? "noreferrer" : undefined}
-            className="flex min-h-11 items-center justify-between rounded-md border border-border px-3 font-semibold hover:bg-muted"
-          >
-            {evidence.sourceLabel}
-            <ExternalLink className="h-4 w-4 text-muted-foreground" />
-          </a>
+          {external ? (
+            <a
+              href={evidence.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className={sourceClass}
+            >
+              {evidence.sourceLabel}
+              <ExternalLink
+                className="h-4 w-4 shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
+            </a>
+          ) : (
+            <Link href={evidence.sourceUrl} className={sourceClass}>
+              {evidence.sourceLabel}
+            </Link>
+          )}
         </div>
       </aside>
     </>
