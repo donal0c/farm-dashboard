@@ -28,7 +28,7 @@ export default function CalendarPage() {
     <div>
       <PageIntro
         title="Deadlines worth checking"
-        lede="A small, hand-verified watchlist, not a universal compliance calendar. Every date carries its official source and who it applies to; scheme correspondence and current terms remain authoritative."
+        lede="A small, hand-verified watchlist with an official source for every date. Scheme correspondence and current terms remain authoritative."
       />
 
       <dl className="grid gap-4 border-b border-rule py-5 sm:grid-cols-3">
@@ -45,15 +45,14 @@ export default function CalendarPage() {
 
       <ComplianceWatchlist items={upcoming} />
 
-      <section className="flex gap-3 py-7 text-sm leading-6 text-muted-foreground">
+      <section className="flex gap-3 py-6">
         <ShieldCheck
-          className="mt-0.5 h-5 w-5 shrink-0 text-primary"
+          className="mt-0.5 h-4 w-4 shrink-0 text-primary"
           aria-hidden="true"
         />
-        <p className="max-w-[70ch]">
-          AgriView intentionally omits dates that are stale, conditional, or not
-          maintained from a primary source. Check MyAgFood, current terms,
-          adviser guidance, and your own correspondence.
+        <p className="footnote max-w-[70ch]">
+          Dates that are stale, conditional or unsourced are left out on
+          purpose. Check MyAgFood, current terms and your own correspondence.
         </p>
       </section>
     </div>

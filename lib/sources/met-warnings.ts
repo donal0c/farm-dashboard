@@ -70,6 +70,25 @@ export const MET_WARNINGS_SOURCE = {
   url: "https://www.met.ie/warnings-today.html",
 };
 
+/**
+ * Met Éireann only publishes warning_IRELAND.json while a land warning is in
+ * force; the file returns 404 on a quiet day. warning_ALL.json always exists
+ * and also carries marine (sea-area EI8xx) notices, which AgriView drops.
+ */
+export const MET_WARNINGS_FEED_URL =
+  "https://www.met.ie/Open_Data/json/warning_ALL.json";
+
+const landRegion = /^EI(0[1-9]|[12][0-9]|3[01])$/i;
+
+/** True for a national notice or one that names at least one county region. */
+export function isLandWarning(regions: string[] | undefined) {
+  if (!regions?.length) return true;
+  return regions.some(
+    (region) =>
+      landRegion.test(region.trim()) || /ireland|national|all/i.test(region),
+  );
+}
+
 const severityRank: Record<MetWarningLevel, number> = {
   Red: 0,
   Orange: 1,
@@ -165,7 +184,8 @@ export function normalizeMetWarnings(
       (warning) =>
         warning.headline &&
         warning.expiry &&
-        Date.parse(warning.expiry) > fetchedAt.getTime(),
+        Date.parse(warning.expiry) > fetchedAt.getTime() &&
+        isLandWarning(warning.regions),
     )
     .map((warning) => ({
       id: String(warning.capId ?? warning.id ?? warning.headline),
@@ -203,8 +223,8 @@ export function normalizeMetWarnings(
     fetchedAt: fetchedIso,
     staleAfter: new Date(fetchedAt.getTime() + 15 * 60 * 1000).toISOString(),
     warning: data.length
-      ? "National and regional warnings still require local interpretation for the saved farm."
-      : null,
+      ? "National and regional warnings still require local interpretation for the saved farm. Marine sea-area notices are not shown."
+      : "No land warning is in force in the published feed. Marine sea-area notices are not shown.",
     confidence: "authoritative",
   };
 }

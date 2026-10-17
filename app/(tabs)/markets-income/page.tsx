@@ -146,7 +146,7 @@ export default function MarketsIncomePage() {
     <div className="min-w-0">
       <PageIntro
         title="National signals, kept in scope"
-        lede="CSO output values and price indices give commercial context. They are national, lagged statistics, not your sale price, margin, or a recommendation to buy or sell."
+        lede="CSO output and price indices for context. National and lagged: not your price, margin, or a recommendation."
       />
 
       <dl className="grid gap-4 border-b border-rule py-5 sm:grid-cols-3">
@@ -443,16 +443,15 @@ export default function MarketsIncomePage() {
         </section>
       ) : null}
 
-      <footer className="flex gap-3 py-7 text-sm leading-6 text-muted-foreground">
+      <footer className="flex gap-3 py-6">
         <Scale
-          className="mt-0.5 h-5 w-5 shrink-0 text-primary"
+          className="mt-0.5 h-4 w-4 shrink-0 text-primary"
           aria-hidden="true"
         />
-        <p className="max-w-[70ch]">
-          Values retain the CSO unit. “Euro Million” is rendered as millions,
-          with compact billions where appropriate. The percentage is a change in
-          the national series, not a farm return. Zero is shown only when
-          published; missing data is unavailable.
+        <p className="footnote max-w-[70ch]">
+          Values keep the CSO unit; “Euro Million” is shown as millions or
+          billions. The percentage is a change in the national series, not a
+          farm return. Missing data is unavailable, never zero.
         </p>
       </footer>
     </div>

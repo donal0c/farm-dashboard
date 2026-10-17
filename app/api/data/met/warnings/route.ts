@@ -4,6 +4,7 @@ import { unavailableSnapshot } from "@/lib/contracts/source-snapshot";
 import { fetchValidated } from "@/lib/server/fetch-validated";
 import { sourceCacheControl } from "@/lib/server/source-cache-policy";
 import {
+  MET_WARNINGS_FEED_URL,
   MET_WARNINGS_SOURCE,
   type MetWarning,
   normalizeMetWarnings,
@@ -12,16 +13,13 @@ import {
 
 export async function GET() {
   try {
-    const { data } = await fetchValidated(
-      "https://www.met.ie/Open_Data/json/warning_IRELAND.json",
-      {
-        sourceId: MET_WARNINGS_SOURCE.id,
-        schema: rawMetWarningsSchema,
-        timeoutMs: 8_000,
-        maxAttempts: 2,
-        init: { next: { revalidate: 10 * 60 } },
-      },
-    );
+    const { data } = await fetchValidated(MET_WARNINGS_FEED_URL, {
+      sourceId: MET_WARNINGS_SOURCE.id,
+      schema: rawMetWarningsSchema,
+      timeoutMs: 8_000,
+      maxAttempts: 2,
+      init: { next: { revalidate: 10 * 60 } },
+    });
     return NextResponse.json(normalizeMetWarnings(data), {
       headers: { "Cache-Control": sourceCacheControl.metWarnings },
     });

@@ -3,6 +3,7 @@
 import { ChevronDown, LocateFixed } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useId, useState } from "react";
+
 import type { SourceStatus } from "@/lib/contracts/source-snapshot";
 import {
   enterpriseLabels,
@@ -35,25 +36,36 @@ export function SourceDot({
   label,
   status,
   isFetching,
+  onField = false,
 }: {
   label: string;
   status?: SourceStatus;
   isFetching?: boolean;
+  onField?: boolean;
 }) {
   const tone =
     status === "unavailable"
       ? "bg-act"
       : status === "partial" || status === "stale" || !status
         ? "bg-check"
-        : "bg-success";
+        : onField
+          ? "bg-field-accent"
+          : "bg-success";
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
       <span
         className={cn("h-1.5 w-1.5 rounded-full", tone)}
         aria-hidden="true"
       />
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-semibold text-foreground">
+      <span className={onField ? "text-field-muted" : "text-muted-foreground"}>
+        {label}
+      </span>
+      <span
+        className={cn(
+          "font-semibold",
+          onField ? "text-field-foreground" : "text-foreground",
+        )}
+      >
         {statusText(status, isFetching)}
       </span>
     </span>
@@ -72,9 +84,9 @@ export function farmTitle(location: FarmLocation) {
 }
 
 /**
- * The week's framing line and the farm context that shapes the brief. The
- * enterprise and focus are editable in place so the brief updates as the
- * farmer changes them; nothing here leaves the browser.
+ * The field: the one committed colour on the brief. It carries the week, the
+ * farm, the source state, and the context that shapes the rules. The lead
+ * sheet lifts out of its lower edge.
  */
 export function FarmContextBar({
   location,
@@ -112,30 +124,27 @@ export function FarmContextBar({
   return (
     <header
       id="farm-context"
-      className="scroll-mt-20 border-b border-rule pb-5"
+      className="field bleed scroll-mt-20 rounded-b-lg pb-16 pt-7 sm:pt-9 md:pb-20"
     >
-      <p className="meta">
-        Brief for the week from{" "}
-        <span className="font-editorial text-[15px] italic text-foreground">
-          {weekLabel}
-        </span>
+      <p className="font-editorial text-[15px] italic text-field-muted sm:text-base">
+        The week from {weekLabel}
       </p>
-      <div className="mt-1.5 flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
-        <h1 className="display display-md min-w-0 [overflow-wrap:anywhere]">
+      <div className="mt-2 flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
+        <h1 className="display display-lg min-w-0 text-field-foreground [overflow-wrap:anywhere]">
           {farmTitle(location)}
         </h1>
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 pb-1 text-[13px]">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 pb-2 text-[13px]">
           {sources}
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-        <p className="text-muted-foreground">
-          <span className="font-semibold text-foreground">
+      <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-field-rule pt-4 text-sm">
+        <p className="text-field-muted">
+          <span className="font-semibold text-field-foreground">
             {enterpriseLabels[enterprise]}
           </span>{" "}
           ·{" "}
-          <span className="font-semibold text-foreground">
+          <span className="font-semibold text-field-foreground">
             {weekFocusLabels[weekFocus]}
           </span>{" "}
           focus
@@ -145,7 +154,7 @@ export function FarmContextBar({
           aria-expanded={open}
           aria-controls={panelId}
           onClick={() => setOpen((value) => !value)}
-          className="inline-flex min-h-10 items-center gap-1 rounded-md px-2 text-sm font-semibold text-primary hover:bg-accent/60"
+          className="inline-flex min-h-10 items-center gap-1 rounded-md px-2 text-sm font-semibold text-field-accent hover:bg-white/10 focus-visible:outline-field-accent"
         >
           {open ? "Done" : "Change"}
           <ChevronDown
@@ -161,7 +170,7 @@ export function FarmContextBar({
       {open ? (
         <div
           id={panelId}
-          className="panel sheet-enter mt-3 grid gap-4 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"
+          className="panel sheet-enter mt-4 grid gap-4 px-4 py-4 text-foreground sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"
         >
           <label className="grid gap-1.5 text-xs font-semibold text-muted-foreground">
             Main enterprise
@@ -202,11 +211,10 @@ export function FarmContextBar({
             <LocateFixed className="h-4 w-4" aria-hidden="true" />
             Move farm pin
           </Link>
-          <p className="meta sm:col-span-3">
-            Saved pin {location.latitude.toFixed(4)},{" "}
-            {location.longitude.toFixed(4)} · stays in this browser. These
-            choices tune which rules apply and which national series Markets
-            shows.
+          <p className="footnote sm:col-span-3">
+            Pin {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}{" "}
+            · kept in this browser. These choices change which rules apply and
+            which national series Markets shows.
           </p>
         </div>
       ) : null}

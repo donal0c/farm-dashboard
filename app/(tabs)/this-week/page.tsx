@@ -120,12 +120,12 @@ function LoadingBrief() {
       aria-label="Loading weekly brief"
       aria-live="polite"
     >
-      <div className="border-b border-rule pb-5">
-        <div className="h-3.5 w-56 rounded-sm bg-muted" />
-        <div className="mt-3 h-9 w-72 max-w-full rounded-sm bg-muted" />
-        <div className="mt-4 h-4 w-80 max-w-full rounded-sm bg-muted" />
+      <div className="field bleed rounded-b-lg pb-16 pt-9 md:pb-20">
+        <div className="h-3.5 w-56 rounded-sm bg-white/15" />
+        <div className="mt-3 h-10 w-72 max-w-full rounded-sm bg-white/15" />
+        <div className="mt-5 h-4 w-80 max-w-full rounded-sm bg-white/10" />
       </div>
-      <div className="sheet mt-6 grid min-h-[360px] gap-7 p-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
+      <div className="sheet relative z-10 -mt-10 grid min-h-[360px] gap-7 p-6 md:-mt-12 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
         <div className="grid grid-cols-[3.25rem_minmax(0,1fr)] gap-x-5">
           <div className="h-11 w-11 rounded-full bg-muted" />
           <div>
@@ -228,6 +228,8 @@ export default function ThisWeekPage() {
   const weekStart = days[0]
     ? new Date(`${days[0].date}T12:00:00Z`)
     : new Date();
+  const hasNotices =
+    forecastPartial || forecastStale || warningsUnavailable || warningsPartial;
 
   if (!hasHydrated) return <LoadingBrief />;
   if (!farmLocation) return <FarmSetup />;
@@ -249,11 +251,13 @@ export default function ThisWeekPage() {
                 label="Forecast"
                 status={forecastQuery.data?.status}
                 isFetching={forecastQuery.isFetching}
+                onField
               />
               <SourceDot
                 label="Warnings"
                 status={warningsQuery.data?.status}
                 isFetching={warningsQuery.isFetching}
+                onField
               />
             </>
           }
@@ -266,7 +270,7 @@ export default function ThisWeekPage() {
         ) : forecastUnavailable || !forecastQuery.data?.data ? (
           <SourceNotice
             tone="unavailable"
-            className="mt-6"
+            className="panel relative z-10 -mt-8 bg-sheet"
             title="No weekly advice is safer than invented advice."
             status="Forecast unavailable"
             detail="The forecast source did not return a usable current snapshot, so no priorities were derived. AgriView has not substituted sample values."
@@ -276,14 +280,14 @@ export default function ThisWeekPage() {
         ) : forecastEmpty || !leadItem ? (
           <SourceNotice
             tone="partial"
-            className="mt-6"
+            className="panel relative z-10 -mt-8 bg-sheet"
             title="No usable forecast days were returned."
             detail="The source responded, but it did not contain enough current data to build a weekly brief. No empty values have been treated as weather observations."
             onRetry={() => void forecastQuery.refetch()}
           />
         ) : (
           <>
-            <div className="grid gap-3 pt-5 empty:hidden">
+            <div className="relative z-10 -mt-8 grid gap-3 empty:hidden [&>section]:border-solid [&>section]:bg-sheet [&>section]:shadow-sheet">
               {forecastPartial ? (
                 <SourceNotice
                   tone="partial"
@@ -331,7 +335,8 @@ export default function ThisWeekPage() {
 
             <section
               className={cn(
-                "sheet sheet-enter mt-5 grid gap-7 px-5 py-6 sm:px-7 sm:py-8",
+                "sheet sheet-enter relative z-10 grid gap-7 px-5 py-6 sm:px-7 sm:py-8",
+                hasNotices ? "mt-5" : "-mt-10 md:-mt-12",
                 !evidence &&
                   "xl:grid-cols-[minmax(0,1.05fr)_minmax(340px,0.95fr)]",
               )}
@@ -379,11 +384,11 @@ export default function ThisWeekPage() {
               ) : null}
             </section>
 
-            <footer className="mt-8 flex flex-wrap items-start justify-between gap-4 border-t border-rule py-6 text-sm leading-6 text-muted-foreground">
-              <p className="max-w-[68ch]">
-                AgriView is screening support, not legal, agronomic, or safety
-                advice. Forecasts are estimates and your field conditions may
-                differ. Rules are deterministic and versioned; see Methodology.
+            <footer className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-rule py-5">
+              <p className="footnote max-w-[70ch]">
+                Screening support, not legal, agronomic or safety advice.
+                Forecasts are estimates; field conditions differ. Rules are
+                deterministic and versioned on the Methodology page.
               </p>
               <button
                 type="button"

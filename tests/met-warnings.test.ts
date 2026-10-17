@@ -135,3 +135,59 @@ describe("Met Éireann warning normalization details", () => {
     );
   });
 });
+
+describe("Met Éireann land versus marine warnings", () => {
+  it("drops sea-area notices and keeps county and national ones", () => {
+    const snapshot = normalizeMetWarnings(
+      [
+        {
+          id: "marine",
+          level: "yellow",
+          type: "small-craft",
+          headline: "Small Craft warning from Mizen Head to Erris Head",
+          expiry: "2026-10-16T09:00:00+01:00",
+          regions: ["EI805", "EI816"],
+        },
+        {
+          id: "galway",
+          level: "yellow",
+          type: "Rain",
+          headline: "Status Yellow - Rain warning for Galway",
+          expiry: "2026-10-16T09:00:00+01:00",
+          regions: ["EI10"],
+        },
+        {
+          id: "national",
+          level: "yellow",
+          headline: "Weather Advisory for Ireland",
+          expiry: "2026-10-16T09:00:00+01:00",
+          regions: [],
+        },
+      ],
+      new Date("2026-10-15T08:00:00Z"),
+    );
+    assert.deepEqual(
+      snapshot.data?.map((warning) => warning.id),
+      ["galway", "national"],
+    );
+    assert.match(snapshot.warning ?? "", /Marine/);
+  });
+
+  it("reports an empty land feed as live with no warnings", () => {
+    const snapshot = normalizeMetWarnings(
+      [
+        {
+          id: "marine",
+          level: "yellow",
+          headline: "Small Craft warning",
+          expiry: "2026-10-16T09:00:00+01:00",
+          regions: ["EI807"],
+        },
+      ],
+      new Date("2026-10-15T08:00:00Z"),
+    );
+    assert.equal(snapshot.status, "live");
+    assert.deepEqual(snapshot.data, []);
+    assert.match(snapshot.warning ?? "", /No land warning/);
+  });
+});

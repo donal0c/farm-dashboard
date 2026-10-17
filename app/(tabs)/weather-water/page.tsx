@@ -179,7 +179,7 @@ export default function WeatherWaterPage() {
     <div className="min-w-0 overflow-x-clip">
       <PageIntro
         title="A working weather window"
-        lede="Compare rain, temperature, wind and official notices before planning field work. Forecasts are model estimates; nearby OPW sensors are raw observations at their own locations, not measurements of your fields."
+        lede="Rain, temperature, wind and official notices for the week ahead at the pin."
       />
 
       <dl className="grid gap-4 border-b border-rule py-5 sm:grid-cols-3">
@@ -214,7 +214,7 @@ export default function WeatherWaterPage() {
       >
         <SectionHeading
           title="Official notices"
-          lede="Met Éireann warnings in force now, ordered as published. Red or Orange is an Act, Yellow a Check, and a warning that does not list your county only a Watch."
+          lede="In force now, as published. Red or Orange is an Act; Yellow a Check; not listing your county, a Watch."
           aside={
             <a
               href="https://www.met.ie/warnings-today.html"
@@ -280,7 +280,7 @@ export default function WeatherWaterPage() {
       <section className="border-b border-rule py-8">
         <SectionHeading
           title="Rain and temperature window"
-          lede="Model estimate at the farm pin on one shared daily scale. High and low temperatures share one range; rain bars share one rainfall scale."
+          lede="Model estimate at the pin, on one shared daily scale."
         />
         {forecastQuery.isLoading ? (
           <output
@@ -315,21 +315,20 @@ export default function WeatherWaterPage() {
             onRetry={() => void forecastQuery.refetch()}
           />
         )}
-        <p className="meta mt-4 max-w-[80ch] text-xs">
-          Open-Meteo model estimate at {farmLocation.latitude.toFixed(4)},{" "}
-          {farmLocation.longitude.toFixed(4)}. Latest AgriView check:{" "}
+        <p className="footnote mt-3 max-w-[80ch]">
+          Open-Meteo estimate at {farmLocation.latitude.toFixed(4)},{" "}
+          {farmLocation.longitude.toFixed(4)} · checked{" "}
           {forecastQuery.data?.fetchedAt
             ? formatTime(forecastQuery.data.fetchedAt)
             : "not available"}
-          . Confirm field conditions and the latest local forecast immediately
-          before weather-sensitive work.
+          . Confirm field conditions before weather-sensitive work.
         </p>
       </section>
 
       <section className="py-8">
         <SectionHeading
           title="Nearby OPW water readings"
-          lede="Each sensor’s latest validated observation only. AgriView does not infer a trend, normal range, warning threshold, or flood risk from a single reading."
+          lede="Each sensor’s latest validated observation only, nearest first. AgriView does not infer a trend, threshold or flood risk."
           aside={
             <a
               href="https://waterlevel.ie/"
@@ -427,11 +426,10 @@ export default function WeatherWaterPage() {
             </div>
           )}
         </div>
-        <p className="meta mt-4 max-w-[80ch] text-xs">
-          Observations are ordered by distance to the saved pin, not by risk. A
-          reading older than {STALE_READING_HOURS} hours is marked stale. Open
-          the official station record and local guidance before interpreting a
-          water level.
+        <p className="footnote mt-3 max-w-[80ch]">
+          Ordered by distance, not risk. Readings older than{" "}
+          {STALE_READING_HOURS} hours are marked stale. Open the station record
+          before interpreting a level.
         </p>
       </section>
     </div>

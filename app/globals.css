@@ -8,6 +8,13 @@
   --color-sheet: var(--sheet);
   --color-rail: var(--rail);
   --color-rail-foreground: var(--rail-foreground);
+  --color-field: var(--field);
+  --color-field-foreground: var(--field-foreground);
+  --color-field-muted: var(--field-muted);
+  --color-field-rule: var(--field-rule);
+  --color-field-accent: var(--field-accent);
+  --color-rain: var(--rain);
+  --color-window: var(--window);
   --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-newsreader), Georgia, serif;
   --font-mono: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
@@ -62,6 +69,14 @@
   --sheet: oklch(0.992 0.007 92);
   --rail: oklch(0.948 0.014 90);
   --rail-foreground: oklch(0.33 0.024 72);
+  /* The field: one committed colour that carries the top of the brief. */
+  --field: oklch(0.3 0.055 152);
+  --field-foreground: oklch(0.965 0.012 95);
+  --field-muted: oklch(0.8 0.03 130);
+  --field-rule: oklch(1 0 0 / 14%);
+  --field-accent: oklch(0.82 0.13 120);
+  --rain: oklch(0.46 0.1 240);
+  --window: oklch(0.62 0.11 135);
   --card: oklch(0.985 0.008 92);
   --card-foreground: oklch(0.22 0.02 70);
   --popover: oklch(0.995 0.005 92);
@@ -114,6 +129,13 @@
   --sheet: oklch(0.205 0.014 150);
   --rail: oklch(0.135 0.012 150);
   --rail-foreground: oklch(0.8 0.02 120);
+  --field: oklch(0.235 0.045 152);
+  --field-foreground: oklch(0.95 0.015 100);
+  --field-muted: oklch(0.74 0.03 130);
+  --field-rule: oklch(1 0 0 / 12%);
+  --field-accent: oklch(0.82 0.13 120);
+  --rain: oklch(0.7 0.1 235);
+  --window: oklch(0.6 0.1 135);
   --card: oklch(0.195 0.014 150);
   --card-foreground: oklch(0.92 0.016 120);
   --popover: oklch(0.21 0.014 150);
@@ -245,6 +267,45 @@
     background: var(--sheet);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
+  }
+  .field {
+    background-color: var(--field);
+    background-image:
+      radial-gradient(circle at 1px 1px, oklch(1 0 0 / 7%) 0.8px, transparent 0),
+      linear-gradient(
+        180deg,
+        color-mix(in oklch, var(--field) 88%, white) 0%,
+        var(--field) 55%,
+        color-mix(in oklch, var(--field) 92%, black) 100%
+      );
+    background-size:
+      22px 22px,
+      100% 100%;
+    color: var(--field-foreground);
+  }
+  .field ::selection {
+    background: oklch(1 0 0 / 22%);
+  }
+  .bleed {
+    margin-inline: calc(50% - 50vw);
+    padding-inline: calc(50vw - 50%);
+  }
+  @media (min-width: 768px) {
+    .bleed {
+      margin-inline: -2.5rem;
+      padding-inline: 2.5rem;
+    }
+  }
+  @media (min-width: 640px) and (max-width: 767px) {
+    .bleed {
+      margin-inline: -1.75rem;
+      padding-inline: 1.75rem;
+    }
+  }
+  .footnote {
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: var(--muted-foreground);
   }
   .paper-grain {
     background-image: radial-gradient(

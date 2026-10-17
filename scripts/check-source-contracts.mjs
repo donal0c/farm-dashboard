@@ -53,7 +53,7 @@ const checks = [
   () =>
     checkJson(
       "Met Éireann warnings",
-      "https://www.met.ie/Open_Data/json/warning_IRELAND.json",
+      "https://www.met.ie/Open_Data/json/warning_ALL.json",
       (payload) => {
         assert(Array.isArray(payload), "expected an array");
         if (!payload.length) return;

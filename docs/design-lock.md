@@ -16,6 +16,15 @@ decorative dashboard. Revised 14 October 2026 after the deep audit.
   decision use, uppercase tracked kickers above headings, and coloured
   left-rules as a semantic device.
 
+## The field
+
+One committed colour carries the top of the brief: a deep moss field
+(`--field`, with `--field-foreground`, `--field-muted`, `--field-accent`)
+holding the week, the farm, the source state and the context line in reversed
+paper type. The lead sheet lifts out of its lower edge. The same field backs
+the wordmark block in the rail. It bleeds to the content gutters, never to the
+viewport. Nothing else on the page is moss-filled; evidence pages stay paper.
+
 ## Semantic hierarchy: the margin mark
 
 Priorities are annotated in a notebook margin, never by a coloured border.
@@ -68,10 +77,13 @@ Priorities are annotated in a notebook margin, never by a coloured border.
 
 ## Data graphic grammar
 
-- The weather ledger (`weekly-evidence-strip.tsx`) is one column per usable
-  day: day, date, icon, high, low, rain bar with millimetres, gust. The days the
-  lead decision names are highlighted with a moss rule and tint, so the
+- The weather ledger (`weekly-evidence-strip.tsx`) is drawn: a filled band
+  between each day's high (moss line and dot) and low (dashed line and dot),
+  rain bars in `--rain` blue on one scale, and the gust per day. The days the
+  lead decision names are banded in `--window` moss with a 3 px rule, so the
   evidence visibly supports the call.
+- First run is map-led: the island fills the opening and one paper card holds
+  search, device location, coordinates, context and the save action.
 - Gusts at or above the versioned threshold are set bold in ochre.
 - Everything in a graphic is also available as text; no hover is required.
 - No chart animation.

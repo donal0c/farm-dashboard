@@ -173,7 +173,7 @@ export default function MyLandPage() {
     <div>
       <PageIntro
         title="Land around your pin"
-        lede="LPIS parcels are reference features near the point you saved. They do not prove ownership, eligibility, or the boundary of your holding."
+        lede="Reference parcels, nitrate band and county context near the pin. None of it proves ownership or a holding boundary."
         action={
           <Button
             variant="outline"
@@ -227,7 +227,7 @@ export default function MyLandPage() {
       <section className="py-8">
         <SectionHeading
           title="Map and parcel register"
-          lede="Select a parcel on either side to keep the visual and readable views in step. Results cover the search around your pin, not a declared farm boundary."
+          lede="Select a parcel on the map or in the list; the two stay in step."
           aside={
             <fieldset className="flex flex-wrap gap-2">
               <legend className="sr-only">Map layers</legend>
@@ -295,10 +295,9 @@ export default function MyLandPage() {
             <div className="meta mt-3 flex items-start gap-2 text-xs">
               <Layers3 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <p>
-                Green outlines are DAFM LPIS 2024 reference features. LPIS does
-                not establish ownership, eligibility, control, or your legal
-                holding boundary. EPA soil is a contextual WMS overlay. Base map
-                © OpenMapTiles © OpenStreetMap contributors.
+                Green outlines are DAFM LPIS 2024 reference features, not a
+                legal holding boundary. EPA soil is a contextual overlay. Base
+                map © OpenMapTiles © OpenStreetMap contributors.
               </p>
             </div>
           </div>
@@ -413,10 +412,9 @@ export default function MyLandPage() {
                 </div>
               )}
             </div>
-            <p className="meta mt-3 text-xs">
-              Showing up to eight unique parcels, largest first. If you select
-              another map feature, it replaces the final row so the readable
-              register stays in step.
+            <p className="footnote mt-3">
+              Up to eight unique parcels, largest first. A parcel chosen on the
+              map takes the last row.
             </p>
           </div>
         </div>
@@ -526,9 +524,9 @@ export default function MyLandPage() {
         </aside>
       </section>
 
-      <footer className="border-t border-rule py-6 text-sm leading-6 text-muted-foreground">
-        The map is a screening workspace. Confirm official scheme maps,
-        correspondence, and field records before acting.
+      <footer className="footnote border-t border-rule py-5">
+        A screening workspace. Confirm official scheme maps, correspondence and
+        field records before acting.
       </footer>
     </div>
   );

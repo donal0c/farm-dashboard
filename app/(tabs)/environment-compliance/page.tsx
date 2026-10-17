@@ -194,7 +194,7 @@ export default function EnvironmentCompliancePage() {
     <div className="min-w-0">
       <PageIntro
         title="Water and nitrates, kept in scope"
-        lede="EPA waterbody classifications and the current DAFM nitrate layer near the saved pin. These are screening signals—not a field assessment, holding determination, or compliance decision."
+        lede="EPA waterbody status and the DAFM nitrate layer near the pin. These are screening signals—not a field assessment, holding determination, or compliance decision."
       />
 
       <section className="grid border-b border-rule sm:grid-cols-3">

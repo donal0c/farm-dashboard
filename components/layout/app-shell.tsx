@@ -252,21 +252,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         data-print="hide"
         className="paper-grain hidden border-r border-rule bg-rail text-rail-foreground md:sticky md:top-0 md:flex md:h-dvh md:self-start md:flex-col"
       >
-        <header className="flex items-center gap-3 px-5 pb-5 pt-6">
-          <span className="text-primary">
+        <header className="field mx-3 mt-3 flex items-center gap-3 rounded-lg px-4 py-4">
+          <span className="text-field-accent">
             <BrandMark className="h-9 w-9" />
           </span>
           <div>
-            <p className="font-editorial text-[1.45rem] font-medium leading-none tracking-[-0.02em] text-foreground">
+            <p className="font-editorial text-[1.45rem] font-medium leading-none tracking-[-0.02em] text-field-foreground">
               AgriView
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Weekly farm brief
-            </p>
+            <p className="mt-1 text-xs text-field-muted">Weekly farm brief</p>
           </div>
         </header>
 
-        <div className="flex flex-1 flex-col px-3">
+        <div className="flex flex-1 flex-col px-3 pt-5">
           <p className="mb-1.5 px-3 text-[11px] font-semibold text-muted-foreground">
             Farm
           </p>
